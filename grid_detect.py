@@ -105,17 +105,37 @@ broad_mask = cv2.inRange(hsv, np.array((0, 0, 0)), np.array((180, 80, 250)))
 broad_mask[:rect_top, :] = 0; broad_mask[rect_bot:, :] = 0
 broad_mask[:, :rect_left] = 0; broad_mask[:, rect_right:] = 0
 
+# Prompt user for grid dimensions before any detection,
+# so parameters can scale to the image.
+default_rows = 10
+default_cols = 24
+print(f"Grid layout (default {default_rows}x{default_cols}):")
+try:
+    ROW_COUNT = int(input(f"  Rows [{default_rows}]: ") or default_rows)
+    COL_COUNT = int(input(f"  Cols [{default_cols}]: ") or default_cols)
+except (EOFError, KeyboardInterrupt):
+    ROW_COUNT = default_rows
+    COL_COUNT = default_cols
+print(f"Using {ROW_COUNT} rows x {COL_COUNT} columns\n")
+
+# Estimate dot spacing from rectangle size; scales detection parameters.
+rect_w = rect_right - rect_left
+rect_h = rect_bot - rect_top
+spacing_x = rect_w / max(COL_COUNT - 1, 1)
+spacing_y = rect_h / max(ROW_COUNT - 1, 1)
+est_spacing = (spacing_x + spacing_y) / 2
+
 # Find blobs with HoughCircles (conservative: no false positives, FN acceptable)
 blurred = cv2.GaussianBlur(data_mask, (5, 5), 1)
 circles = cv2.HoughCircles(
     blurred,
     cv2.HOUGH_GRADIENT,
     dp=1,
-    minDist=15,
+    minDist=max(12, round(est_spacing * 0.6)),
     param1=80,
     param2=12,
-    minRadius=3,
-    maxRadius=15,
+    minRadius=max(2, round(est_spacing * 0.1)),
+    maxRadius=max(10, round(est_spacing * 0.55)),
 )
 
 raw_blobs = []
@@ -169,21 +189,12 @@ for cx, cy, area in blobs:
 blobs = refined_blobs
 print(f"\n=== BLACK-BLOB CENTER CORRECTIONS: {black_refined} ===\n")
 
-# Prompt user for grid dimensions.
-default_rows = 10
-default_cols = 24
-print(f"Grid layout (default {default_rows}x{default_cols}):")
-try:
-    ROW_COUNT = int(input(f"  Rows [{default_rows}]: ") or default_rows)
-    COL_COUNT = int(input(f"  Cols [{default_cols}]: ") or default_cols)
-except (EOFError, KeyboardInterrupt):
-    ROW_COUNT = default_rows
-    COL_COUNT = default_cols
-print(f"Using {ROW_COUNT} rows x {COL_COUNT} columns\n")
 darkness = np.clip(225 - hsv[:, :, 2].astype(float), 0, 225)
 x_profile = darkness[rect_top:rect_bot, rect_left:rect_right].sum(axis=0)
 x_profile = np.maximum(x_profile - cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), 10).ravel(), 0)
-peaks, _ = find_peaks(x_profile, distance=12, prominence=80, height=80)
+x_spacing_peak = max(10, round(est_spacing * 0.45))
+x_prominence = max(30, round(est_spacing * 3))
+peaks, _ = find_peaks(x_profile, distance=x_spacing_peak, prominence=x_prominence, height=x_prominence)
 column_x = [int(p + rect_left) for p in peaks]
 if len(column_x) > COL_COUNT:
     anchor_max_x = max(b[0] for b in blobs)
@@ -197,7 +208,9 @@ y_profile = np.zeros(rect_bot - rect_top, dtype=float)
 for cx in column_x:
     y_profile += darkness[rect_top:rect_bot, max(0, cx - 5):min(W, cx + 6)].sum(axis=1)
 y_profile = np.maximum(y_profile - cv2.GaussianBlur(y_profile.reshape(-1, 1), (0, 0), 10).ravel(), 0)
-y_peaks, _ = find_peaks(y_profile, distance=15, prominence=80, height=80)
+y_spacing_peak = max(12, round(est_spacing * 0.55))
+y_prominence = max(30, round(est_spacing * 3))
+y_peaks, _ = find_peaks(y_profile, distance=y_spacing_peak, prominence=y_prominence, height=y_prominence)
 row_y = [int(p + rect_top) for p in y_peaks]
 while len(row_y) < ROW_COUNT:
     gaps = [(row_y[i + 1] - row_y[i], i) for i in range(len(row_y) - 1)]
