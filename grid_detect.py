@@ -239,7 +239,39 @@ for distance, position_index, anchor_index in candidate_matches:
     predicted[position_index] = (bx, by)
     used_positions.add(position_index)
     used_anchors.add(anchor_index)
+
+# Refine only model-only positions when the local blot is strong enough to be
+# trusted. Pale positions remain exactly at the Hough-derived model center.
+refine_radius = max(6, round(6 * max(1.0, W / 1920)))
+anchor_strengths = []
+for bx, by, _ in blobs:
+    patch = darkness[max(0, by - refine_radius):min(H, by + refine_radius + 1),
+                     max(0, bx - refine_radius):min(W, bx + refine_radius + 1)]
+    anchor_strengths.append(float(patch.max()))
+refine_cutoff = float(np.percentile(anchor_strengths, 30)) if anchor_strengths else float("inf")
+refined_positions = 0
+for position_index, (px, py) in enumerate(predicted):
+    if position_index in used_positions:
+        continue
+    x0 = max(0, px - refine_radius)
+    x1 = min(W, px + refine_radius + 1)
+    y0 = max(0, py - refine_radius)
+    y1 = min(H, py + refine_radius + 1)
+    patch = darkness[y0:y1, x0:x1]
+    peak_strength = float(patch.max())
+    if peak_strength < refine_cutoff:
+        continue
+    x_local = patch.sum(axis=0)
+    x_local = cv2.GaussianBlur(x_local.reshape(1, -1), (0, 0), max(1, refine_radius / 3)).ravel()
+    refined_x = x0 + int(np.argmax(x_local))
+    y_local = patch[:, max(0, refined_x - x0 - refine_radius):min(patch.shape[1], refined_x - x0 + refine_radius + 1)].sum(axis=1)
+    y_local = cv2.GaussianBlur(y_local.reshape(-1, 1), (0, 0), max(1, refine_radius / 3)).ravel()
+    refined_y = y0 + int(np.argmax(y_local))
+    predicted[position_index] = (refined_x, refined_y)
+    refined_positions += 1
+
 print(f"Hough-anchored centers: {len(used_positions)}; model-only centers: {len(predicted) - len(used_positions)}")
+print(f"Conditional center refinement: {refined_positions} positions; confidence cutoff={refine_cutoff:.1f}")
 print(f"Predicted positions: {len(predicted)} ({COL_COUNT} columns x {ROW_COUNT} rows)")
 
 with open("predicted_positions.json", "w") as f:
