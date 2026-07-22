@@ -216,24 +216,30 @@ print(f"Certain anchors after structural filter: {len(blobs)} (removed {len(anch
 predicted = fit_grid(blobs)
 
 modeled = predicted
-predicted = []
-refine_radius = max(6, round(6 * max(1.0, W / 1920)))
-for px, py in modeled:
-    x0 = max(0, px - refine_radius)
-    x1 = min(W, px + refine_radius + 1)
-    y0 = max(0, py - refine_radius)
-    y1 = min(H, py + refine_radius + 1)
+predicted = list(modeled)
 
-    x_local = darkness[max(0, py - refine_radius):min(H, py + refine_radius + 1), x0:x1].sum(axis=0)
-    x_local = cv2.GaussianBlur(x_local.reshape(1, -1), (0, 0), max(1, refine_radius / 3)).ravel()
-    refined_x = x0 + int(np.argmax(x_local))
-
-    y_local = darkness[y0:y1, max(0, refined_x - refine_radius):min(W, refined_x + refine_radius + 1)].sum(axis=1)
-    y_local = cv2.GaussianBlur(y_local.reshape(-1, 1), (0, 0), max(1, refine_radius / 3)).ravel()
-    refined_y = y0 + int(np.argmax(y_local))
-    predicted.append((refined_x, refined_y))
-
-print(f"Center refinement: median shift={np.median([math.hypot(a - b, c - d) for (a, c), (b, d) in zip(predicted, modeled)]):.1f}px")
+# Correct only from retained Hough centers. A dark-pixel search is not allowed
+# to move a prediction onto an unrelated nearby blot or artifact.
+candidate_matches = sorted(
+    (
+        math.hypot(px - bx, py - by),
+        position_index,
+        anchor_index,
+    )
+    for position_index, (px, py) in enumerate(modeled)
+    for anchor_index, (bx, by, _) in enumerate(blobs)
+    if math.hypot(px - bx, py - by) <= anchor_cutoff
+)
+used_positions = set()
+used_anchors = set()
+for distance, position_index, anchor_index in candidate_matches:
+    if position_index in used_positions or anchor_index in used_anchors:
+        continue
+    bx, by, _ = blobs[anchor_index]
+    predicted[position_index] = (bx, by)
+    used_positions.add(position_index)
+    used_anchors.add(anchor_index)
+print(f"Hough-anchored centers: {len(used_positions)}; model-only centers: {len(predicted) - len(used_positions)}")
 print(f"Predicted positions: {len(predicted)} ({COL_COUNT} columns x {ROW_COUNT} rows)")
 
 with open("predicted_positions.json", "w") as f:
