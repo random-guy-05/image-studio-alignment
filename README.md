@@ -37,7 +37,6 @@ This project automates aligning blue-outline circles to black/light-grey data do
    - Detect the visible blue outlines
    - Pair each blue with a unique position from the complete 240-position model
    - Save the pairs to `targets.json`
-   - Save a review image to `screenshots/blue_target_overlay.png`
 
 ### Step 2: Align
 1. From the same terminal: `python3 align.py`

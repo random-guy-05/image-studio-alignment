@@ -7,11 +7,14 @@ import time
 
 import cv2
 import numpy as np
+import pyautogui
 from scipy.optimize import linear_sum_assignment
 
 PREDICTED_PATH = "predicted_positions.json"
 TARGETS_PATH = "targets.json"
-BLUE_CAPTURE = "/tmp/blues.png"
+BLUE_CAPTURE = "/tmp/blues_full.png"
+EXPECTED_BLUE_COUNT = 240
+BLUE_COUNT_TOLERANCE = 5
 
 
 def get_main_window():
@@ -39,7 +42,7 @@ def get_main_window():
     return windows[0][:4]
 
 
-def detect_blue_centers(image):
+def detect_blue_centers(image, scale):
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(
         hsv,
@@ -50,11 +53,11 @@ def detect_blue_centers(image):
         cv2.GaussianBlur(mask, (5, 5), 1),
         cv2.HOUGH_GRADIENT,
         dp=1,
-        minDist=15,
+        minDist=round(15 * scale),
         param1=80,
         param2=30,
-        minRadius=6,
-        maxRadius=18,
+        minRadius=round(6 * scale),
+        maxRadius=round(18 * scale),
     )
     if circles is None:
         return []
@@ -71,24 +74,28 @@ def main():
 
     subprocess.run(["osascript", "-e", "tell application \"ImageStudio\" to activate"], check=True)
     time.sleep(0.4)
-    subprocess.run([
-        "screencapture", "-R", f"{wx},{wy},{ww},{wh}", BLUE_CAPTURE,
-    ], check=True)
+    subprocess.run(["screencapture", BLUE_CAPTURE], check=True)
     image = cv2.imread(BLUE_CAPTURE)
     if image is None:
         raise RuntimeError(f"Could not read {BLUE_CAPTURE}")
 
-    scale_x = image.shape[1] / ww
-    scale_y = image.shape[0] / wh
-    detection_image = cv2.resize(image, (ww, wh), interpolation=cv2.INTER_AREA)
-    local_blues = detect_blue_centers(detection_image)
+    screen_w, screen_h = pyautogui.size()
+    scale_x = image.shape[1] / screen_w
+    scale_y = image.shape[0] / screen_h
+    scale = (scale_x + scale_y) / 2
+    local_blues = detect_blue_centers(image, scale)
     blues = [
-        (round(wx + x), round(wy + y), r)
+        (x, y, r)
         for x, y, r in local_blues
-        if rect_left < wx + x < rect_right and rect_top < wy + y < rect_bottom
+        if rect_left < x < rect_right and rect_top < y < rect_bottom
     ]
     if not blues:
         raise RuntimeError("No blue outlines detected inside the data rectangle")
+    if not EXPECTED_BLUE_COUNT - BLUE_COUNT_TOLERANCE <= len(blues) <= EXPECTED_BLUE_COUNT + BLUE_COUNT_TOLERANCE:
+        raise RuntimeError(
+            f"Expected {EXPECTED_BLUE_COUNT} +/- {BLUE_COUNT_TOLERANCE} blue outlines, "
+            f"detected {len(blues)}; refusing to prepare drags"
+        )
     if len(blues) > len(positions):
         raise RuntimeError(f"Detected {len(blues)} blue outlines but only {len(positions)} targets exist")
 
@@ -104,12 +111,20 @@ def main():
     for row, col in zip(rows, cols):
         bx, by, _ = blues[row]
         tx, ty = positions[col]
-        pairs.append({"dot": [bx, by], "spot": [tx, ty]})
+        pairs.append({
+            "dot": [round(bx / scale_x), round(by / scale_y)],
+            "spot": [round(tx / scale_x), round(ty / scale_y)],
+        })
     pairs.sort(key=lambda pair: (pair["spot"][1], pair["spot"][0]))
 
     output = {
         "bounds": [wx, wy, ww, wh],
-        "rectangle": prediction["rectangle"],
+        "rectangle": [
+            round(rect_left / scale_x),
+            round(rect_top / scale_y),
+            round(rect_right / scale_x),
+            round(rect_bottom / scale_y),
+        ],
         "pairs": pairs,
         "extras": [],
         "predicted_position_count": len(positions),
@@ -117,24 +132,12 @@ def main():
     with open(TARGETS_PATH, "w") as f:
         json.dump(output, f, indent=2)
 
-    preview = image.copy()
-    for bx, by, _ in blues:
-        x = round((bx - wx) * scale_x)
-        y = round((by - wy) * scale_y)
-        cv2.circle(preview, (x, y), 10, (0, 0, 255), 2)
-    for tx, ty in positions:
-        x = round((tx - wx) * scale_x)
-        y = round((ty - wy) * scale_y)
-        cv2.circle(preview, (x, y), 4, (0, 255, 0), 1)
-    cv2.imwrite("screenshots/blue_target_overlay.png", preview)
-
     distances = [math.hypot(p["dot"][0] - p["spot"][0], p["dot"][1] - p["spot"][1]) for p in pairs]
     print(f"Predicted target positions: {len(positions)}")
     print(f"Blue outlines: {len(blues)}")
     print(f"Pairs written: {len(pairs)}")
     print(f"Initial pairing distance: median={np.median(distances):.1f}px max={max(distances):.1f}px")
     print(f"Saved: {TARGETS_PATH}")
-    print("Preview: screenshots/blue_target_overlay.png")
 
 
 if __name__ == "__main__":

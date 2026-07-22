@@ -9,7 +9,7 @@ import math
 from collections import Counter, defaultdict
 from scipy.signal import find_peaks
 
-img = cv2.imread("/tmp/dots.png")
+img = cv2.imread("screenshots/dots.png")
 H, W = img.shape[:2]
 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
