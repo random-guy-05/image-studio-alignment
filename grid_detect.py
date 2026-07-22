@@ -174,29 +174,38 @@ if len(row_y) > ROW_COUNT:
 print(f"\nRows: {row_y}")
 print(f"Row gaps: {[row_y[i + 1] - row_y[i] for i in range(len(row_y) - 1)]}")
 
-# Fit a small horizontal offset independently for each row. This handles the
-# slight local misalignment without forcing every row onto one x-lattice.
-predicted = []
-for cy in row_y:
-    row_anchors = [(b[0], b[1]) for b in blobs if abs(b[1] - cy) <= 10]
-    residuals = []
-    for bx, _ in row_anchors:
-        nearest = min(column_x, key=lambda x: abs(x - bx))
-        if abs(nearest - bx) <= 12:
-            residuals.append(bx - nearest)
-    offset = int(round(float(np.median(residuals)))) if residuals else 0
-    row_columns = [x + offset for x in column_x]
-    if len(row_anchors) >= 2:
-        anchor_x = np.array([p[0] for p in row_anchors], dtype=float)
-        anchor_y = np.array([p[1] for p in row_anchors], dtype=float)
-        y_slope, y_intercept = np.polyfit(anchor_x, anchor_y, 1)
-    else:
-        y_slope, y_intercept = 0.0, float(cy)
-    predicted.extend(
-        (x, int(round(y_intercept + y_slope * x)))
-        for x in row_columns
-    )
-    print(f"  row y={cy}: anchors={len(row_anchors)} x_offset={offset} y_slope={y_slope * 1000:.1f}/1000px")
+def fit_grid(anchors):
+    positions = []
+    for cy in row_y:
+        row_anchors = [(b[0], b[1]) for b in anchors if abs(b[1] - cy) <= 10]
+        residuals = []
+        for bx, _ in row_anchors:
+            nearest = min(column_x, key=lambda x: abs(x - bx))
+            if abs(nearest - bx) <= 12:
+                residuals.append(bx - nearest)
+        offset = int(round(float(np.median(residuals)))) if residuals else 0
+        row_columns = [x + offset for x in column_x]
+        if len(row_anchors) >= 2:
+            anchor_x = np.array([p[0] for p in row_anchors], dtype=float)
+            anchor_y = np.array([p[1] for p in row_anchors], dtype=float)
+            y_slope, y_intercept = np.polyfit(anchor_x, anchor_y, 1)
+        else:
+            y_slope, y_intercept = 0.0, float(cy)
+        positions.extend(
+            (x, int(round(y_intercept + y_slope * x)))
+            for x in row_columns
+        )
+        print(f"  row y={cy}: anchors={len(row_anchors)} x_offset={offset} y_slope={y_slope * 1000:.1f}/1000px")
+    return positions
+
+
+# Reject Hough candidates that do not land near the first structural model.
+# This keeps the overlay and refit anchor set false-positive conservative.
+initial_model = fit_grid(blobs)
+anchor_distances = [min(math.hypot(b[0] - x, b[1] - y) for x, y in initial_model) for b in blobs]
+blobs = [b for b, distance in zip(blobs, anchor_distances) if distance <= 8]
+print(f"Certain anchors after structural filter: {len(blobs)} (removed {len(anchor_distances) - len(blobs)})")
+predicted = fit_grid(blobs)
 
 modeled = predicted
 predicted = []
