@@ -7,11 +7,12 @@ from pathlib import Path
 from escape_guard import AbortRequested, check, sleep as safe_sleep, start as start_escape, stop as stop_escape
 
 ROOT = Path(__file__).resolve().parent
+WORKDIR = Path.cwd()
 
 
 def run(script, *args):
     command = [sys.executable, str(ROOT / script), *args]
-    process = subprocess.Popen(command, cwd=ROOT)
+    process = subprocess.Popen(command, cwd=WORKDIR)
     try:
         while process.poll() is None:
             check()
@@ -32,6 +33,7 @@ def main():
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("detect", help="Learn the 240 definitive blot centers")
+    subparsers.add_parser("init", help="Create a local screenshots workspace")
     subparsers.add_parser("run", help="Run detect, prepare, align, and verify")
     prepare = subparsers.add_parser("prepare", help="Pair visible blue centers to definitive targets")
     prepare.add_argument("--resume", action="store_true", help="Allow fewer visible outlines after a partial run")
@@ -44,6 +46,13 @@ def main():
     subparsers.add_parser("status", help="Run verification and return its status")
 
     args = parser.parse_args()
+    if args.command == "init":
+        (WORKDIR / "screenshots").mkdir(parents=True, exist_ok=True)
+        print(f"Workspace ready: {WORKDIR}")
+        print(f"Put the clean full-screen blot screenshot at: {WORKDIR / 'screenshots' / 'dots.png'}")
+        return
+    if not (WORKDIR / "screenshots" / "dots.png").exists():
+        parser.error(f"No screenshots/dots.png in {WORKDIR}. Run `image-studio init` first.")
     start_escape()
     try:
         if args.command == "run":

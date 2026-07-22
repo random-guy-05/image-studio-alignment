@@ -6,13 +6,27 @@ The project treats the modeled 240 positions as definitive targets. It uses cons
 
 ## Install
 
-### macOS, Intel or Apple Silicon
+### Recommended: no clone required
+
+Install the global command directly from GitHub:
 
 ```bash
-./install.sh
+npm install -g github:random-guy-05/image-studio-alignment
 ```
 
-The installer creates `.venv` and installs OpenCV, NumPy, SciPy, and PyAutoGUI.
+Then create a workspace anywhere:
+
+```bash
+mkdir image-studio-workspace
+cd image-studio-workspace
+image-studio init
+```
+
+The npm installer creates the private Python environment automatically. No repository clone is required.
+
+### macOS, Intel or Apple Silicon
+
+The global npm command works on both Intel and Apple Silicon Macs. If you already cloned the repository instead, `./install.sh` remains available.
 
 If macOS asks for permissions, allow your terminal or Python access under:
 
@@ -24,14 +38,16 @@ The same Python workflow supports Intel Macs and Apple Silicon Macs; use the nat
 
 ### Windows
 
-Open PowerShell in the project folder:
+Install Node.js and Python 3, then run from PowerShell anywhere:
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\install.ps1
+npm install -g github:random-guy-05/image-studio-alignment
+mkdir image-studio-workspace
+cd image-studio-workspace
+image-studio init
 ```
 
-Then run the CLI with:
+If you already cloned the repository, `install.ps1` remains available. Then run the CLI with:
 
 ```powershell
 python .\image_studio.py --help
@@ -65,7 +81,7 @@ npm run image-studio
 Press `Esc` at any time to abort. The current drag is released safely and the workflow can be resumed with:
 
 ```bash
-npm run prepare -- --resume
+npm run targets -- --resume
 npm run align
 ```
 
@@ -143,7 +159,7 @@ Equivalent npm shortcuts:
 
 ```bash
 npm run detect
-npm run prepare
+npm run targets
 npm run align
 npm run verify
 npm run complete
