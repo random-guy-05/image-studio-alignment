@@ -172,14 +172,14 @@ black_components = []
 for component in range(1, black_count):
     bx, by, bw, bh, area = black_stats[component]
     cx, cy = black_centers[component]
-    if area >= 5 and bw <= 20 and bh <= 20:
+    if area >= 5 and bw <= max(15, round(est_spacing * 0.7)) and bh <= max(15, round(est_spacing * 0.7)):
         black_components.append((cx, cy, component, area))
 
 black_refined = 0
 refined_blobs = []
 for cx, cy, area in blobs:
     candidates = [component for component in black_components
-                  if math.hypot(component[0] - cx, component[1] - cy) <= 8]
+                  if math.hypot(component[0] - cx, component[1] - cy) <= max(8, round(est_spacing * 0.35))]
     if candidates:
         bx, by, _, black_area = min(candidates, key=lambda component: math.hypot(component[0] - cx, component[1] - cy))
         refined_blobs.append((round(bx), round(by), max(area, black_area)))
@@ -293,7 +293,7 @@ def fit_grid(anchors):
     stable_slopes = []
     for cy in row_y:
         row_anchors = [(b[0], b[1]) for b in anchors if abs(b[1] - cy) <= 10]
-        if len(row_anchors) >= 5:
+        if len(row_anchors) >= 8:
             anchor_x = np.array([p[0] for p in row_anchors], dtype=float)
             anchor_y = np.array([p[1] for p in row_anchors], dtype=float)
             stable_slopes.append(np.polyfit(anchor_x, anchor_y, 1)[0])
@@ -309,7 +309,7 @@ def fit_grid(anchors):
                 residuals.append(bx - nearest)
         offset = int(round(float(np.median(residuals)))) if residuals else 0
         row_columns = [x + offset for x in column_x]
-        if len(row_anchors) >= 5:
+        if len(row_anchors) >= 8:
             anchor_x = np.array([p[0] for p in row_anchors], dtype=float)
             anchor_y = np.array([p[1] for p in row_anchors], dtype=float)
             y_slope, y_intercept = np.polyfit(anchor_x, anchor_y, 1)
@@ -360,7 +360,11 @@ while len(row_y) < ROW_COUNT:
             best_score, best_y = float(y_profile[py - rect_top]), py
     if best_y is None:
         best_y = round(row_y[0] + (row_y[-1] - row_y[0]) / 2)
-    row_y.append(best_y)
+    if all(abs(best_y - existing) >= min_row_gap for existing in row_y):
+        row_y.append(best_y)
+    else:
+        # Already too close to an existing row; try the next best gap in the next iteration.
+        pass
 row_y.sort()
 print(f"Pruned rows: {row_y}")
 
