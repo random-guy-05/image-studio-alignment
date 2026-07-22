@@ -214,86 +214,51 @@ for cx in column_x:
     y_profile += darkness[rect_top:rect_bot, max(0, cx - y_window):min(W, cx + y_window + 1)].sum(axis=1)
 y_blur = max(6, round(spacing_y * 0.35))
 y_profile = np.maximum(y_profile - cv2.GaussianBlur(y_profile.reshape(-1, 1), (0, 0), y_blur).ravel(), 0)
-y_distance = max(10, round(spacing_y * 0.65))
-y_prom = max(15, round(spacing_y * 1.0))
+y_distance = max(5, round(spacing_y * 0.1))
+y_prom = max(10, round(spacing_y * 0.5))
 y_peaks, _ = find_peaks(y_profile, distance=y_distance, prominence=y_prom, height=y_prom)
 row_candidates = [int(p + rect_top) for p in y_peaks]
 
-# Score each candidate by profile strength + how evenly it fits.
-if len(row_candidates) > 1:
-    med_gap = float(np.median(np.diff(sorted(row_candidates))))
-    best_peak = max(y_profile[p - rect_top] for p in row_candidates)
-    scores = []
-    for p in row_candidates:
-        h = y_profile[p - rect_top]
-        # Reward proximity to a regular grid anchored on p.
-        nearest_regular = round(p / med_gap) * med_gap
-        regularity_bonus = 0.5 * best_peak * max(0, 1 - abs(p - nearest_regular) / max(med_gap * 0.5, 1))
-        scores.append(h + regularity_bonus)
-    if len(row_candidates) > ROW_COUNT:
-        sorted_idx = sorted(range(len(row_candidates)), key=lambda i: scores[i], reverse=True)
-        row_y = sorted(row_candidates[i] for i in sorted_idx[:ROW_COUNT])
-    else:
-        row_y = sorted(row_candidates)
-else:
-    row_y = row_candidates
+# Greedy selection: keep strongest peaks, enforce minimum row spacing.
+min_row_gap = max(10, round(spacing_y * 0.55))
+row_candidates.sort(key=lambda y: y_profile[y - rect_top], reverse=True)
+row_y = []
+for cy in row_candidates:
+    if all(abs(cy - existing) >= min_row_gap for existing in row_y):
+        row_y.append(cy)
+    if len(row_y) >= ROW_COUNT:
+        break
+row_y.sort()
 
+# Fill remaining gaps — find the strongest signal anywhere that respects spacing.
+row_y.sort()
 while len(row_y) < ROW_COUNT:
-    gaps = [(row_y[i + 1] - row_y[i], i) for i in range(len(row_y) - 1)]
-    gap_size, index = max(gaps)
-    margin = max(1, round(spacing_y * 0.2))
-    y_start = row_y[index] + margin
-    y_end = row_y[index + 1] - margin
-    if y_end > y_start and y_start >= rect_top:
-        best_y = y_start + int(np.argmax(y_profile[y_start - rect_top:y_end - rect_top]))
-    else:
-        best_y = round((row_y[index] + row_y[index + 1]) / 2)
-    row_y.insert(index + 1, best_y)
-if len(row_y) > ROW_COUNT:
-    row_y = sorted(row_y, key=lambda y: y_profile[y - rect_top], reverse=True)[:ROW_COUNT]
-    row_y.sort()
+    # Score every gap position by profile height, filter by min spacing.
+    best_score, best_y, best_index = 0, None, None
+    for i in range(len(row_y) - 1):
+        margin = max(1, round(spacing_y * 0.15))
+        y_start = max(rect_top + margin, row_y[i] + margin)
+        y_end = min(rect_bot - margin, row_y[i + 1] - margin)
+        if y_end <= y_start:
+            continue
+        seg = y_profile[y_start - rect_top:y_end - rect_top]
+        if len(seg) == 0:
+            continue
+        peak_y = y_start + int(np.argmax(seg))
+        score = y_profile[peak_y - rect_top]
+        if score > best_score and all(abs(peak_y - existing) >= min_row_gap for existing in row_y):
+            best_score, best_y, best_index = score, peak_y, i
+    if best_y is None:
+        best_y = round((row_y[0] + row_y[-1]) / 2)  # last resort midpoint
+        best_index = len(row_y) - 1
+    row_y.insert(best_index + 1, best_y if best_y is not None else round(spacing_y))
+
 print(f"\nRows: {row_y}")
 print(f"Row gaps: {[row_y[i + 1] - row_y[i] for i in range(len(row_y) - 1)]}")
 
 # Ghost-row cleanup: any row with zero nearby anchors is suspect.
-# Replace it with the strongest signal in the largest adjacent gap.
 def _anchor_count(cy, anchors):
     return sum(1 for bx, by, _ in anchors if abs(by - cy) <= max(5, round(spacing_y * 0.15)))
-
-# First: merge rows that are suspiciously close (same physical row split).
-row_y.sort()
-print(f"DEBUG pre-merge: {len(row_y)} rows, gaps={[row_y[i+1]-row_y[i] for i in range(len(row_y)-1)]}")
-if len(row_y) > 1:
-    med_gap = float(np.median(np.diff(row_y)))
-    min_gap = max(8, round(med_gap * 0.45))
-    print(f"DEBUG med_gap={med_gap:.1f} min_gap={min_gap}")
-    merged = []
-    i = 0
-    while i < len(row_y):
-        cluster = [row_y[i]]
-        j = i + 1
-        while j < len(row_y) and row_y[j] - cluster[-1] <= min_gap:
-            cluster.append(row_y[j])
-            j += 1
-        # Keep only the strongest peak in each close cluster.
-        if len(cluster) > 1:
-            merged.append(max(cluster, key=lambda y: y_profile[y - rect_top]))
-        else:
-            merged.append(cluster[0])
-        i = j
-    row_y = merged
-
-while len(row_y) < ROW_COUNT:
-    gaps = [(row_y[i + 1] - row_y[i], i) for i in range(len(row_y) - 1)]
-    _, index = max(gaps)
-    margin = max(1, round(spacing_y * 0.2))
-    y_start = row_y[index] + margin
-    y_end = row_y[index + 1] - margin
-    if y_end > y_start and y_start >= rect_top:
-        best_y = y_start + int(np.argmax(y_profile[y_start - rect_top:y_end - rect_top]))
-    else:
-        best_y = round((row_y[index] + row_y[index + 1]) / 2)
-    row_y.insert(index + 1, best_y)
 
 for _ in range(3):  # up to 3 rounds of cleanup
     changed = False
