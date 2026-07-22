@@ -133,7 +133,7 @@ circles = cv2.HoughCircles(
     dp=1,
     minDist=max(12, round(est_spacing * 0.6)),
     param1=80,
-    param2=12,
+    param2=10,
     minRadius=max(2, round(est_spacing * 0.1)),
     maxRadius=max(10, round(est_spacing * 0.55)),
 )
@@ -338,6 +338,32 @@ anchor_cutoff = max(6.0, distance_median + 3.0 * robust_sigma)
 blobs = [b for b, distance in zip(blobs, anchor_distances) if distance <= anchor_cutoff]
 print(f"Anchor residuals: median={distance_median:.1f}px MAD={distance_mad:.1f}px cutoff={anchor_cutoff:.1f}px")
 print(f"Certain anchors after structural filter: {len(blobs)} (removed {len(anchor_distances) - len(blobs)})")
+
+# Prune rows that lost all anchors after structural filtering.
+# A row with zero certain anchors should not produce predictions.
+anchor_counts = [_anchor_count(cy, blobs) for cy in row_y]
+print(f"Anchors per row: {dict(zip(row_y, anchor_counts))}")
+for i in range(len(row_y) - 1, -1, -1):
+    if anchor_counts[i] == 0:
+        print(f"  dropping row y={row_y[i]} (0 anchors)")
+        del row_y[i]
+while len(row_y) < ROW_COUNT:
+    best_score, best_y = 0, None
+    for k in range(len(row_y) - 1):
+        m = max(1, round(spacing_y * 0.15))
+        y1, y2 = max(rect_top + m, row_y[k] + m), min(rect_bot - m, row_y[k+1] - m)
+        if y2 <= y1: continue
+        seg = y_profile[y1 - rect_top:y2 - rect_top]
+        if len(seg) == 0: continue
+        py = y1 + int(np.argmax(seg))
+        if y_profile[py - rect_top] > best_score:
+            best_score, best_y = float(y_profile[py - rect_top]), py
+    if best_y is None:
+        best_y = round(row_y[0] + (row_y[-1] - row_y[0]) / 2)
+    row_y.append(best_y)
+row_y.sort()
+print(f"Pruned rows: {row_y}")
+
 predicted = fit_grid(blobs)
 
 modeled = predicted
