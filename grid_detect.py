@@ -235,6 +235,40 @@ if len(row_y) > ROW_COUNT:
 print(f"\nRows: {row_y}")
 print(f"Row gaps: {[row_y[i + 1] - row_y[i] for i in range(len(row_y) - 1)]}")
 
+# Ghost-row cleanup: any row with zero nearby anchors is suspect.
+# Replace it with the strongest signal in the largest adjacent gap.
+def _anchor_count(cy, anchors):
+    return sum(1 for bx, by in anchors if abs(by - cy) <= max(5, round(spacing_y * 0.15)))
+
+for _ in range(3):  # up to 3 rounds of cleanup
+    changed = False
+    for i in range(len(row_y)):
+        if _anchor_count(row_y[i], blobs) > 0:
+            continue
+        # Find the better of the two adjacent gaps.
+        candidates = []
+        if i > 0:
+            gap_above = row_y[i] - row_y[i - 1]
+            mid = round((row_y[i] + row_y[i - 1]) / 2)
+            m = max(1, round(spacing_y * 0.15))
+            y1, y2 = row_y[i-1] + m, row_y[i] - m
+            if y2 > y1:
+                candidates.append(y1 + int(np.argmax(y_profile[y1 - rect_top:y2 - rect_top])))
+        if i < len(row_y) - 1:
+            gap_below = row_y[i + 1] - row_y[i]
+            mid = round((row_y[i] + row_y[i + 1]) / 2)
+            m = max(1, round(spacing_y * 0.15))
+            y1, y2 = row_y[i] + m, row_y[i+1] - m
+            if y2 > y1:
+                candidates.append(y1 + int(np.argmax(y_profile[y1 - rect_top:y2 - rect_top])))
+        if candidates:
+            row_y[i] = max(candidates, key=lambda y: y_profile[y - rect_top])
+            changed = True
+    if not changed:
+        break
+row_y.sort()
+print(f"Cleaned rows: {row_y}")
+
 def fit_grid(anchors):
     stable_slopes = []
     for cy in row_y:
