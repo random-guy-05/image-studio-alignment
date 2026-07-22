@@ -67,7 +67,7 @@ $env:IMAGESTUDIO_WINDOW_TITLE = "Your ImageStudio Window Title"
 Once `screenshots/dots.png` is clean and the blue outlines are visible:
 
 ```bash
-npm run image-studio
+image-studio run
 ```
 
 This runs detect, prepare, align, and verify in one sequence.
@@ -75,14 +75,14 @@ This runs detect, prepare, align, and verify in one sequence.
 On Windows, use the same command from PowerShell:
 
 ```powershell
-npm run image-studio
+image-studio run
 ```
 
 Press `Esc` at any time to abort. The current drag is released safely and the workflow can be resumed with:
 
 ```bash
-npm run targets -- --resume
-npm run align
+image-studio prepare --resume
+image-studio align
 ```
 
 ### 1. Capture the clean blot image
@@ -164,6 +164,8 @@ npm run align
 npm run verify
 npm run complete
 ```
+
+Those `npm run` shortcuts are for a cloned developer checkout; global users should use the `image-studio` command directly.
 
 On Windows, replace `./image_studio.py` with `python .\image_studio.py`.
 
