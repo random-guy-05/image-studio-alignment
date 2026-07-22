@@ -1,0 +1,12 @@
+{
+  "name": "image-studio-alignment",
+  "private": true,
+  "scripts": {
+    "image-studio": "node image_studio_cli.js run",
+    "detect": "node image_studio_cli.js detect",
+    "prepare": "node image_studio_cli.js prepare",
+    "align": "node image_studio_cli.js align",
+    "verify": "node image_studio_cli.js verify",
+    "complete": "node image_studio_cli.js complete"
+  }
+}

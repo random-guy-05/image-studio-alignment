@@ -9,6 +9,7 @@ import json, math, time, sys
 import argparse
 import pyautogui
 from platform_utils import activate_window, get_largest_window
+from escape_guard import AbortRequested, check, sleep as safe_sleep, start as start_escape, stop as stop_escape
 
 # Eliminate pyautogui's default 0.1s pause between every call
 # (would otherwise make each drag take 6+s on a 60-step drag)
@@ -64,20 +65,32 @@ def select_and_drag(dot, spot, retry=False):
                 print(f"    SKIP: {name} ({x},{y}) too close to rectangle border", flush=True)
                 return False
 
+    check()
     pyautogui.moveTo(fx, fy)
-    time.sleep(PRE_CLICK)
+    safe_sleep(PRE_CLICK)
     pyautogui.click()
-    time.sleep(CLICK_INTERVAL)
+    safe_sleep(CLICK_INTERVAL)
     pyautogui.click()
-    time.sleep(SETTLE)
-    pyautogui.dragTo(tx, ty, duration=duration, button='left', mouseDownUp=True)
-    time.sleep(SETTLE)
+    safe_sleep(SETTLE)
+    drag_steps = max(2, int(math.ceil(dist / 20)))
+    pyautogui.moveTo(fx, fy)
+    pyautogui.mouseDown()
+    try:
+        for step in range(1, drag_steps + 1):
+            check()
+            progress = step / drag_steps
+            pyautogui.moveTo(fx + (tx - fx) * progress,
+                             fy + (ty - fy) * progress,
+                             duration=duration / drag_steps)
+    finally:
+        pyautogui.mouseUp()
+    safe_sleep(SETTLE)
     pyautogui.click()
-    time.sleep(POST_CLICK)
+    safe_sleep(POST_CLICK)
 
     # VERIFICATION: check if a blue circle is now at the target
     if not retry:
-        time.sleep(0.3)  # let the UI settle
+        safe_sleep(0.3)  # let the UI settle
         if not verify_alignment(spot):
             print(f"    MISALIGNED — correcting…", flush=True)
             # Find where the blue actually landed and re-drag to the target
@@ -92,6 +105,19 @@ def main():
     parser.add_argument("--targets", default="targets.json")
     args = parser.parse_args()
     data = json.load(open(args.targets))
+    start_escape()
+    try:
+        _run_alignment(data)
+    except AbortRequested:
+        pyautogui.mouseUp()
+        print("\nAborted by ESC. Re-run with resume preparation to continue.", flush=True)
+        raise SystemExit(130)
+    finally:
+        stop_escape()
+
+
+def _run_alignment(data):
+    global WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H, RECT_X1, RECT_Y1, RECT_X2, RECT_Y2
     pairs = data["pairs"]
     WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H = data["bounds"]
 

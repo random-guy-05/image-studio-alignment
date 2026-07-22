@@ -44,6 +44,29 @@ $env:IMAGESTUDIO_WINDOW_TITLE = "Your ImageStudio Window Title"
 
 ## Daily Workflow
 
+### One command
+
+Once `screenshots/dots.png` is clean and the blue outlines are visible:
+
+```bash
+npm run image-studio
+```
+
+This runs detect, prepare, align, and verify in one sequence.
+
+On Windows, use the same command from PowerShell:
+
+```powershell
+npm run image-studio
+```
+
+Press `Esc` at any time to abort. The current drag is released safely and the workflow can be resumed with:
+
+```bash
+npm run prepare -- --resume
+npm run align
+```
+
 ### 1. Capture the clean blot image
 
 1. Open the ImageStudio file and show the full grid.
@@ -112,6 +135,16 @@ This uses `verification.json` logic to create a temporary repair set, aligns onl
 ./image_studio.py align
 ./image_studio.py verify --tolerance 10
 ./image_studio.py complete --tolerance 10
+```
+
+Equivalent npm shortcuts:
+
+```bash
+npm run detect
+npm run prepare
+npm run align
+npm run verify
+npm run complete
 ```
 
 On Windows, replace `./image_studio.py` with `python .\image_studio.py`.
