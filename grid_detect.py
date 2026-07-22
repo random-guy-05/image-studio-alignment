@@ -263,14 +263,6 @@ blobs = [b for b, distance in zip(blobs, anchor_distances) if distance <= anchor
 print(f"Anchor residuals: median={distance_median:.1f}px MAD={distance_mad:.1f}px cutoff={anchor_cutoff:.1f}px")
 print(f"Certain anchors after structural filter: {len(blobs)} (removed {len(anchor_distances) - len(blobs)})")
 
-# Remove any row with no remaining certain anchors.
-def _count(c, a):
-    return sum(1 for _, y, _ in a if abs(y - c) <= 12)
-for i in range(len(row_y) - 1, -1, -1):
-    if _count(row_y[i], blobs) == 0:
-        print(f"  dropping row y={row_y[i]} (0 anchors)")
-        del row_y[i]
-
 predicted = fit_grid(blobs)
 
 modeled = predicted
