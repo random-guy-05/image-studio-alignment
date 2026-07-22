@@ -22,6 +22,7 @@ SETTLE            = 0.70   # pause after each major action
 PRE_CLICK         = 0.20   # pause before first click
 POST_CLICK        = 0.20   # pause after final click
 CORNER_PAD        = 10     # don't click within 10pt of the rectangle border
+ALIGNED_TOLERANCE = 10     # already centered; do not touch it again
 
 # Window + rectangle bounds (set in main from targets.json)
 WINDOW_X = WINDOW_Y = WINDOW_W = WINDOW_H = None
@@ -137,9 +138,12 @@ def main():
         dot  = p["dot"][:2]
         spot = p["spot"][:2]
         t0 = time.time()
+        dist = math.hypot(spot[0] - dot[0], spot[1] - dot[1])
+        if dist <= ALIGNED_TOLERANCE:
+            print(f"  pair {i+1}/{len(pairs)}  dist={dist:.0f}pt  [already aligned]", flush=True)
+            continue
         ok = select_and_drag(dot, spot)
         elapsed = time.time() - t0
-        dist = math.hypot(spot[0]-dot[0], spot[1]-dot[1])
         status = "ok" if ok else "skip"
         print(f"  pair {i+1}/{len(pairs)}  dist={dist:.0f}pt  took {elapsed:.1f}s  [{status}]", flush=True)
 

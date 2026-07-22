@@ -70,6 +70,14 @@ def main():
 
     positions = [tuple(point) for point in prediction["positions"]]
     rect_left, rect_top, rect_right, rect_bottom = prediction["rectangle"]
+    prediction_scale_x, prediction_scale_y = prediction.get("scale", [1.0, 1.0])
+    pixel_positions = [(round(x * prediction_scale_x), round(y * prediction_scale_y)) for x, y in positions]
+    pixel_rect = (
+        round(rect_left * prediction_scale_x),
+        round(rect_top * prediction_scale_y),
+        round(rect_right * prediction_scale_x),
+        round(rect_bottom * prediction_scale_y),
+    )
     wx, wy, ww, wh = get_main_window()
 
     subprocess.run(["osascript", "-e", "tell application \"ImageStudio\" to activate"], check=True)
@@ -79,15 +87,14 @@ def main():
     if image is None:
         raise RuntimeError(f"Could not read {BLUE_CAPTURE}")
 
-    screen_w, screen_h = pyautogui.size()
-    scale_x = image.shape[1] / screen_w
-    scale_y = image.shape[0] / screen_h
+    scale_x = prediction_scale_x
+    scale_y = prediction_scale_y
     scale = (scale_x + scale_y) / 2
     local_blues = detect_blue_centers(image, scale)
     blues = [
         (x, y, r)
         for x, y, r in local_blues
-        if rect_left < x < rect_right and rect_top < y < rect_bottom
+        if pixel_rect[0] < x < pixel_rect[2] and pixel_rect[1] < y < pixel_rect[3]
     ]
     if not blues:
         raise RuntimeError("No blue outlines detected inside the data rectangle")
@@ -101,9 +108,9 @@ def main():
 
     # Every predicted position is definitive. Match each blue to a unique
     # target, without filtering targets based on screenshot darkness.
-    cost = np.zeros((len(blues), len(positions)), dtype=float)
+    cost = np.zeros((len(blues), len(pixel_positions)), dtype=float)
     for i, (bx, by, _) in enumerate(blues):
-        for j, (tx, ty) in enumerate(positions):
+        for j, (tx, ty) in enumerate(pixel_positions):
             cost[i, j] = math.hypot(bx - tx, by - ty)
     rows, cols = linear_sum_assignment(cost)
 
@@ -113,18 +120,13 @@ def main():
         tx, ty = positions[col]
         pairs.append({
             "dot": [round(bx / scale_x), round(by / scale_y)],
-            "spot": [round(tx / scale_x), round(ty / scale_y)],
+            "spot": list(positions[col]),
         })
     pairs.sort(key=lambda pair: (pair["spot"][1], pair["spot"][0]))
 
     output = {
         "bounds": [wx, wy, ww, wh],
-        "rectangle": [
-            round(rect_left / scale_x),
-            round(rect_top / scale_y),
-            round(rect_right / scale_x),
-            round(rect_bottom / scale_y),
-        ],
+        "rectangle": [rect_left, rect_top, rect_right, rect_bottom],
         "pairs": pairs,
         "extras": [],
         "predicted_position_count": len(positions),
