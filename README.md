@@ -14,7 +14,7 @@ This project automates aligning blue-outline circles to black/light-grey data do
 └── README.md          <- this file
 ```
 
-## Workflow (Two Steps)
+## Workflow
 
 ### Step 0: Prepare
 1. In ImageStudio, open file `0000300_01` (or whatever the target image is)
@@ -47,6 +47,12 @@ This project automates aligning blue-outline circles to black/light-grey data do
    - Use **long delays** (~0.7s between actions) to avoid lag
    - Only click **inside the blue rectangle** (edge safety)
 
+### Step 3: Verify and Complete
+1. Check the current alignment without moving anything: `python3 verify_alignment.py`
+2. The verifier compares every detected blue center with all 240 definitive target centers and writes `verification.json`.
+3. Complete only misaligned visible outlines: `python3 complete_alignment.py`
+4. The completion script re-verifies after the repair pass; pale or undetected outlines are reported as missing instead of guessed.
+
 ## Recovery
 
 If the alignment goes wrong:
@@ -59,3 +65,5 @@ If the alignment goes wrong:
 - `/tmp/dots.png` — your screenshot (read by setup.py)
 - `/tmp/blues.png` — current view (written by setup.py)
 - `targets.json` — pairs + extras (written by setup.py, read by align.py)
+- `verification.json` — latest verifier report
+- `resume_targets.json` — temporary verifier-generated repair pairs
