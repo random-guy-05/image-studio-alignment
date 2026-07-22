@@ -338,6 +338,6 @@ for x, y, area in blobs:
     center = (round(x * scale_x), round(y * scale_y))
     cv2.circle(img_out, center, round(9 * scale_x), (0, 0, 255), 2)
     cv2.drawMarker(img_out, center, (0, 255, 255), cv2.MARKER_CROSS, round(12 * scale_x), 2)
-out_path = "/Users/admin/opencode-imagestudio/screenshots/detected_overlay.png"
+out_path = "screenshots/detected_overlay.png"
 cv2.imwrite(out_path, img_out)
 print(f"\nSaved: {out_path}")
