@@ -2,45 +2,18 @@
 """Pair the current blue outlines with the definitive modeled data positions."""
 import json
 import math
-import subprocess
 import sys
-import time
 
 import cv2
 import numpy as np
-import pyautogui
 from scipy.optimize import linear_sum_assignment
+from platform_utils import activate_window, capture_fullscreen, get_largest_window
 
 PREDICTED_PATH = "predicted_positions.json"
 TARGETS_PATH = "targets.json"
 BLUE_CAPTURE = "/tmp/blues_full.png"
 EXPECTED_BLUE_COUNT = 240
 BLUE_COUNT_TOLERANCE = 5
-
-
-def get_main_window():
-    raw = subprocess.check_output([
-        "osascript", "-e",
-        "tell application \"System Events\" to tell process \"ImageStudio\" to get position of every window & size of every window",
-    ]).decode().strip()
-    parts = []
-    for value in raw.replace("{", "").replace("}", "").split(","):
-        value = value.strip()
-        try:
-            parts.append(int(value))
-        except ValueError:
-            parts.append(0)
-    count = len(parts) // 4
-    windows = []
-    for i in range(count):
-        x, y = parts[i * 2], parts[i * 2 + 1]
-        w, h = parts[count * 2 + i * 2], parts[count * 2 + i * 2 + 1]
-        if w and h:
-            windows.append((x, y, w, h, w * h))
-    if not windows:
-        raise RuntimeError("Could not find an ImageStudio window")
-    windows.sort(key=lambda item: -item[4])
-    return windows[0][:4]
 
 
 def detect_blue_centers(image, scale):
@@ -79,11 +52,10 @@ def main():
         round(rect_right * prediction_scale_x),
         round(rect_bottom * prediction_scale_y),
     )
-    wx, wy, ww, wh = get_main_window()
+    wx, wy, ww, wh = get_largest_window()
 
-    subprocess.run(["osascript", "-e", "tell application \"ImageStudio\" to activate"], check=True)
-    time.sleep(0.4)
-    subprocess.run(["screencapture", BLUE_CAPTURE], check=True)
+    activate_window()
+    capture_fullscreen(BLUE_CAPTURE)
     image = cv2.imread(BLUE_CAPTURE)
     if image is None:
         raise RuntimeError(f"Could not read {BLUE_CAPTURE}")

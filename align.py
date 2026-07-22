@@ -5,9 +5,10 @@ Drags each blue dot to its paired grey spot.
 - Esc after each drop to deselect the dot
 - Per-N screenshot checkpoint for sanity
 """
-import json, math, subprocess, time, sys
+import json, math, time, sys
 import argparse
 import pyautogui
+from platform_utils import activate_window, get_largest_window
 
 # Eliminate pyautogui's default 0.1s pause between every call
 # (would otherwise make each drag take 6+s on a 60-step drag)
@@ -94,30 +95,9 @@ def main():
     pairs = data["pairs"]
     WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H = data["bounds"]
 
-    # Verify against the LARGEST window
+    # Verify against the largest ImageStudio window on the current platform.
     try:
-        raw = subprocess.check_output(["osascript", "-e",
-            'tell application "System Events" to tell process "ImageStudio" to get position of every window & size of every window'
-        ]).decode().strip()
-        parts = []
-        for p in raw.replace("{","").replace("}","").split(","):
-            p = p.strip()
-            if p == "missing value" or p == "":
-                parts.append(0)
-            else:
-                try: parts.append(int(p))
-                except: parts.append(0)
-        nums = parts
-        n = len(nums) // 4
-        largest = None
-        for i in range(n):
-            wx, wy = nums[i*2], nums[i*2+1]
-            ww, wh = nums[n*2 + i*2], nums[n*2 + i*2 + 1]
-            if ww == 0 or wh == 0: continue
-            area = ww * wh
-            if largest is None or area > largest[2]:
-                largest = (wx, wy, area, ww, wh)
-        actual = (largest[0], largest[1], largest[3], largest[4])
+        actual = get_largest_window()
     except Exception as e:
         print(f"Could not check windows: {e}", flush=True)
         actual = tuple(WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H)
@@ -134,9 +114,7 @@ def main():
         RECT_X1, RECT_Y1, RECT_X2, RECT_Y2 = data["rectangle"]
     print(f"Aligning {len(pairs)} dots…  + {len(data.get('extras', []))} extras to corner")
 
-    subprocess.run(["osascript", "-e",
-        'tell application "ImageStudio" to activate'])
-    time.sleep(0.5)
+    activate_window()
 
     for i, p in enumerate(pairs):
         dot  = p["dot"][:2]

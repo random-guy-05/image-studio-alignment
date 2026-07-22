@@ -3,40 +3,16 @@
 import argparse
 import json
 import math
-import subprocess
 
 import cv2
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from prepare_targets import detect_blue_centers
+from platform_utils import capture_fullscreen, get_largest_window
 
 BLUE_CAPTURE = "/tmp/verify_blues_full.png"
 REPORT_PATH = "verification.json"
-
-
-def get_screen_bounds():
-    raw = subprocess.check_output([
-        "osascript", "-e",
-        "tell application \"System Events\" to tell process \"ImageStudio\" to get position of every window & size of every window",
-    ]).decode().strip()
-    parts = []
-    for value in raw.replace("{", "").replace("}", "").split(","):
-        try:
-            parts.append(int(value.strip()))
-        except ValueError:
-            parts.append(0)
-    count = len(parts) // 4
-    windows = []
-    for i in range(count):
-        x, y = parts[i * 2], parts[i * 2 + 1]
-        w, h = parts[count * 2 + i * 2], parts[count * 2 + i * 2 + 1]
-        if w and h:
-            windows.append((x, y, w, h, w * h))
-    if not windows:
-        raise RuntimeError("Could not find an ImageStudio window")
-    windows.sort(key=lambda item: -item[4])
-    return windows[0][:4]
 
 
 def verify(tolerance=10):
@@ -48,11 +24,11 @@ def verify(tolerance=10):
     pixel_rect = [round(rect[0] * scale_x), round(rect[1] * scale_y),
                   round(rect[2] * scale_x), round(rect[3] * scale_y)]
     try:
-        wx, wy, ww, wh = get_screen_bounds()
+        wx, wy, ww, wh = get_largest_window()
     except Exception as exc:
         raise RuntimeError("Open ImageStudio with the blue outlines visible before verifying") from exc
 
-    subprocess.run(["screencapture", BLUE_CAPTURE], check=True)
+    capture_fullscreen(BLUE_CAPTURE)
     image = cv2.imread(BLUE_CAPTURE)
     if image is None:
         raise RuntimeError(f"Could not read {BLUE_CAPTURE}")

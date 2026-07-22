@@ -6,7 +6,7 @@ The project treats the modeled 240 positions as definitive targets. It uses cons
 
 ## Install
 
-From this folder:
+### macOS, Intel or Apple Silicon
 
 ```bash
 ./install.sh
@@ -17,6 +17,30 @@ The installer creates `.venv` and installs OpenCV, NumPy, SciPy, and PyAutoGUI.
 If macOS asks for permissions, allow your terminal or Python access under:
 
 `System Settings -> Privacy & Security -> Accessibility`
+
+The same Python workflow supports Intel Macs and Apple Silicon Macs; use the native Python installed on that machine.
+
+### Windows
+
+Open PowerShell in the project folder:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\install.ps1
+```
+
+Then run the CLI with:
+
+```powershell
+python .\image_studio.py --help
+python .\image_studio.py detect
+```
+
+If the application title is not exactly `ImageStudio`, set it before running:
+
+```powershell
+$env:IMAGESTUDIO_WINDOW_TITLE = "Your ImageStudio Window Title"
+```
 
 ## Daily Workflow
 
@@ -90,10 +114,14 @@ This uses `verification.json` logic to create a temporary repair set, aligns onl
 ./image_studio.py complete --tolerance 10
 ```
 
+On Windows, replace `./image_studio.py` with `python .\image_studio.py`.
+
 ## Important Files
 
 - `image_studio.py`: unified CLI
 - `install.sh`: one-command environment setup
+- `install.ps1`: Windows PowerShell environment setup
+- `platform_utils.py`: Intel Mac, Apple Silicon Mac, and Windows window/capture helpers
 - `grid_detect.py`: clean blot detection and 240-position modeling
 - `prepare_targets.py`: full-screen blue-center detection and pairing
 - `align.py`: guarded center-to-center dragging
