@@ -215,9 +215,29 @@ for cx in column_x:
 y_blur = max(6, round(spacing_y * 0.35))
 y_profile = np.maximum(y_profile - cv2.GaussianBlur(y_profile.reshape(-1, 1), (0, 0), y_blur).ravel(), 0)
 y_distance = max(10, round(spacing_y * 0.65))
-y_prom = max(30, round(spacing_y * 2.5))
+y_prom = max(15, round(spacing_y * 1.0))
 y_peaks, _ = find_peaks(y_profile, distance=y_distance, prominence=y_prom, height=y_prom)
-row_y = [int(p + rect_top) for p in y_peaks]
+row_candidates = [int(p + rect_top) for p in y_peaks]
+
+# Score each candidate by profile strength + how evenly it fits.
+if len(row_candidates) > 1:
+    med_gap = float(np.median(np.diff(sorted(row_candidates))))
+    best_peak = max(y_profile[p - rect_top] for p in row_candidates)
+    scores = []
+    for p in row_candidates:
+        h = y_profile[p - rect_top]
+        # Reward proximity to a regular grid anchored on p.
+        nearest_regular = round(p / med_gap) * med_gap
+        regularity_bonus = 0.5 * best_peak * max(0, 1 - abs(p - nearest_regular) / max(med_gap * 0.5, 1))
+        scores.append(h + regularity_bonus)
+    if len(row_candidates) > ROW_COUNT:
+        sorted_idx = sorted(range(len(row_candidates)), key=lambda i: scores[i], reverse=True)
+        row_y = sorted(row_candidates[i] for i in sorted_idx[:ROW_COUNT])
+    else:
+        row_y = sorted(row_candidates)
+else:
+    row_y = row_candidates
+
 while len(row_y) < ROW_COUNT:
     gaps = [(row_y[i + 1] - row_y[i], i) for i in range(len(row_y) - 1)]
     gap_size, index = max(gaps)
