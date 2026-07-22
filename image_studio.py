@@ -19,7 +19,11 @@ def run(script, *args):
             safe_sleep(0.05)
     except AbortRequested:
         process.terminate()
-        process.wait(timeout=5)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
         raise
     if process.returncode:
         raise subprocess.CalledProcessError(process.returncode, command)
