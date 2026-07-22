@@ -82,6 +82,10 @@ def main():
     if len(blues) > len(positions):
         raise RuntimeError(f"Detected {len(blues)} blue outlines but only {len(positions)} targets exist")
 
+    print(f"\n{'='*60}")
+    print(f"  BLUE OUTLINES DETECTED: {len(blues)}  (target: {len(positions)})")
+    print(f"{'='*60}\n")
+
     # Every predicted position is definitive. Match each blue to a unique
     # target, without filtering targets based on screenshot darkness.
     cost = np.zeros((len(blues), len(pixel_positions)), dtype=float)

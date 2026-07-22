@@ -139,7 +139,9 @@ for cx, cy, area, rr, center_v in raw_blobs:
     dedup.append((cx, cy, area, rr, center_v))
 
 blobs = [(b[0], b[1], b[2]) for b in dedup]
-print(f"Hough blobs inside rectangle (strict): {len(blobs)}")
+print(f"\n{'='*60}")
+print(f"  DATA DOTS DETECTED: {len(blobs)}")
+print(f"{'='*60}\n")
 
 # Fully black dots have a more reliable center in their connected pixel mass
 # than in a circle fit. Only recenter compact black components; pale dots and
@@ -167,12 +169,21 @@ for cx, cy, area in blobs:
     else:
         refined_blobs.append((cx, cy, area))
 blobs = refined_blobs
-print(f"Black-component center corrections: {black_refined}")
+print(f"\n{'='*60}")
+print(f"  BLACK-BLOB CENTER CORRECTIONS: {black_refined}")
+print(f"{'='*60}\n")
 
-# Infer columns and rows from independent darkness profiles. The profiles
-# retain uneven gaps while avoiding false Hough detections as structure.
-ROW_COUNT = 10
-COL_COUNT = 24
+# Prompt user for grid dimensions.
+default_rows = 10
+default_cols = 24
+print(f"Grid layout (default {default_rows}x{default_cols}):")
+try:
+    ROW_COUNT = int(input(f"  Number of rows [{default_rows}]: ") or default_rows)
+    COL_COUNT = int(input(f"  Number of columns [{default_cols}]: ") or default_cols)
+except (EOFError, KeyboardInterrupt):
+    ROW_COUNT = default_rows
+    COL_COUNT = default_cols
+print(f"Using {ROW_COUNT} rows x {COL_COUNT} columns\n")
 darkness = np.clip(225 - hsv[:, :, 2].astype(float), 0, 225)
 x_profile = darkness[rect_top:rect_bot, rect_left:rect_right].sum(axis=0)
 x_profile = np.maximum(x_profile - cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), 10).ravel(), 0)
