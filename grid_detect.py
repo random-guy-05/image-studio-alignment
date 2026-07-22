@@ -149,17 +149,20 @@ black_mask[:rect_top, :] = 0; black_mask[rect_bot:, :] = 0
 black_mask[:, :rect_left] = 0; black_mask[:, rect_right:] = 0
 black_count, black_labels, black_stats, black_centers = cv2.connectedComponentsWithStats(black_mask, 8)
 black_components = []
+black_est_spacing = (rect_bot - rect_top) / 10  # rough before prompt
+black_size_limit = max(15, round(black_est_spacing * 0.7))
 for component in range(1, black_count):
     bx, by, bw, bh, area = black_stats[component]
     cx, cy = black_centers[component]
-    if area >= 5 and bw <= 20 and bh <= 20:
+    if area >= 5 and bw <= black_size_limit and bh <= black_size_limit:
         black_components.append((cx, cy, component, area))
 
 black_refined = 0
 refined_blobs = []
+black_search = max(10, round(black_est_spacing * 0.3))
 for cx, cy, area in blobs:
     candidates = [component for component in black_components
-                  if math.hypot(component[0] - cx, component[1] - cy) <= 8]
+                  if math.hypot(component[0] - cx, component[1] - cy) <= black_search]
     if candidates:
         bx, by, _, black_area = min(candidates, key=lambda component: math.hypot(component[0] - cx, component[1] - cy))
         refined_blobs.append((round(bx), round(by), max(area, black_area)))
