@@ -191,7 +191,8 @@ print(f"\n=== BLACK-BLOB CENTER CORRECTIONS: {black_refined} ===\n")
 
 darkness = np.clip(225 - hsv[:, :, 2].astype(float), 0, 225)
 x_profile = darkness[rect_top:rect_bot, rect_left:rect_right].sum(axis=0)
-x_profile = np.maximum(x_profile - cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), 10).ravel(), 0)
+blur_width = max(6, round(est_spacing * 0.4))
+x_profile = np.maximum(x_profile - cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), blur_width).ravel(), 0)
 x_spacing_peak = max(10, round(est_spacing * 0.45))
 x_prominence = max(30, round(est_spacing * 3))
 peaks, _ = find_peaks(x_profile, distance=x_spacing_peak, prominence=x_prominence, height=x_prominence)
@@ -199,15 +200,18 @@ column_x = [int(p + rect_left) for p in peaks]
 if len(column_x) > COL_COUNT:
     anchor_max_x = max(b[0] for b in blobs)
     column_x = [x for x in column_x if x <= anchor_max_x + 12]
-if len(column_x) != COL_COUNT:
-    raise RuntimeError(f"Expected {COL_COUNT} column peaks, found {len(column_x)}")
+if len(column_x) > COL_COUNT:
+    column_x = sorted(column_x, key=lambda x: x_profile[x - rect_left], reverse=True)[:COL_COUNT]
+    column_x.sort()
+if len(column_x) < COL_COUNT:
+    raise RuntimeError(f"Expected {COL_COUNT} column peaks, found only {len(column_x)}")
 print(f"Columns: {column_x}")
 print(f"Column gaps: {[column_x[i + 1] - column_x[i] for i in range(len(column_x) - 1)]}")
 
 y_profile = np.zeros(rect_bot - rect_top, dtype=float)
 for cx in column_x:
     y_profile += darkness[rect_top:rect_bot, max(0, cx - 5):min(W, cx + 6)].sum(axis=1)
-y_profile = np.maximum(y_profile - cv2.GaussianBlur(y_profile.reshape(-1, 1), (0, 0), 10).ravel(), 0)
+y_profile = np.maximum(y_profile - cv2.GaussianBlur(y_profile.reshape(-1, 1), (0, 0), blur_width).ravel(), 0)
 y_spacing_peak = max(12, round(est_spacing * 0.55))
 y_prominence = max(30, round(est_spacing * 3))
 y_peaks, _ = find_peaks(y_profile, distance=y_spacing_peak, prominence=y_prominence, height=y_prominence)
