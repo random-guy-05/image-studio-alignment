@@ -71,6 +71,15 @@ def main():
     try:
         if args.command == "run":
             run("grid_detect.py")
+            print()
+            try:
+                resp = input("Proceed with alignment? (y/n) [y]: ").strip().lower()
+                if resp and resp != "y":
+                    print("Aborted. Overlay saved — review screenshots/detected_overlay.png")
+                    return
+            except (EOFError, KeyboardInterrupt):
+                print("\nAborted.")
+                return
             run("prepare_targets.py")
             run("align.py")
             run("verify_alignment.py")
