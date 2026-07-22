@@ -43,7 +43,7 @@ if (needVenv) {
   const result = spawnSync(systemPython, ["-m", "venv", path.join(packageRoot, ".venv")], { stdio: "inherit" });
   if (result.status === 0) {
     const pip = path.join(venvDir, process.platform === "win32" ? "pip.exe" : "pip");
-    spawnSync(pip, ["install", "numpy", "opencv-python", "scipy", "pyautogui", "PyGetWindow", "pynput"], { stdio: "inherit" });
+    spawnSync(pip, ["install", "--no-cache-dir", "numpy", "opencv-python", "scipy", "pyautogui", "Pillow", "pyscreeze", "PyGetWindow", "pynput"], { stdio: "inherit" });
     fs.writeFileSync(venvStamp, currentVersion || "");
   }
 }
