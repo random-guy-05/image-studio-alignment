@@ -3,14 +3,12 @@ Cytokine arrays are printed in a regular grid. If we find the grid spacing,
 we can predict every dot position and just check if a dot exists there.
 This eliminates false positives (gaps) and finds faint dots (we look at
 specific positions, not everywhere)."""
-import json
 import cv2, numpy as np
 import math
 from collections import Counter, defaultdict
-import pyautogui
 from scipy.signal import find_peaks
 
-img = cv2.imread("screenshots/dots.png")
+img = cv2.imread("/tmp/dots.png")
 H, W = img.shape[:2]
 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
@@ -54,24 +52,32 @@ rect_bot = int(max(c[1] for c in centers))
 print(f"Rectangle: x=[{rect_left},{rect_right}]  y=[{rect_top},{rect_bot}]  ({rect_right-rect_left}x{rect_bot-rect_top})")
 
 # Get dark pixels inside the rectangle.
+# Use a slightly broader mask for circle proposal, then strict center checks
+# to avoid false positives.
 data_mask = cv2.inRange(hsv, np.array((0, 0, 0)), np.array((180, 50, 215)))
 data_mask[:rect_top, :] = 0; data_mask[rect_bot:, :] = 0
 data_mask[:, :rect_left] = 0; data_mask[:, rect_right:] = 0
 
-# Hough parameters scale with the full-screen screenshot density.
-screen_w, screen_h = pyautogui.size()
-scale = (W / screen_w + H / screen_h) / 2
-kernel = max(5, int(round(5 * scale)) | 1)
-blurred = cv2.GaussianBlur(data_mask, (kernel, kernel), scale)
+strict_mask = cv2.inRange(hsv, np.array((0, 0, 0)), np.array((180, 60, 190)))
+strict_mask[:rect_top, :] = 0; strict_mask[rect_bot:, :] = 0
+strict_mask[:, :rect_left] = 0; strict_mask[:, rect_right:] = 0
+
+# Also build a broad mask for checking grid positions (catches faint dots)
+broad_mask = cv2.inRange(hsv, np.array((0, 0, 0)), np.array((180, 80, 250)))
+broad_mask[:rect_top, :] = 0; broad_mask[rect_bot:, :] = 0
+broad_mask[:, :rect_left] = 0; broad_mask[:, rect_right:] = 0
+
+# Find blobs with HoughCircles (conservative: no false positives, FN acceptable)
+blurred = cv2.GaussianBlur(data_mask, (5, 5), 1)
 circles = cv2.HoughCircles(
     blurred,
     cv2.HOUGH_GRADIENT,
     dp=1,
-    minDist=round(16.5 * scale),
+    minDist=15,
     param1=80,
-    param2=9,
-    minRadius=round(3 * scale),
-    maxRadius=round(15 * scale),
+    param2=12,
+    minRadius=3,
+    maxRadius=15,
 )
 
 raw_blobs = []
@@ -97,61 +103,72 @@ for cx, cy, area, rr, center_v in raw_blobs:
 blobs = [(b[0], b[1], b[2]) for b in dedup]
 print(f"Hough blobs inside rectangle (strict): {len(blobs)}")
 
-# Recover 24 x-columns from the entire rectangle. This does not assume one
-# global spacing; larger gaps remain explicit subgrid gaps.
+# Infer the ten row bands without assuming even vertical spacing.
 ROW_COUNT = 10
 COL_COUNT = 24
+anchor_y = np.sort(np.array([b[1] for b in blobs], dtype=float))
+n = len(anchor_y)
+dp = np.full((ROW_COUNT + 1, n + 1), np.inf)
+prev = np.full((ROW_COUNT + 1, n + 1), -1, dtype=int)
+dp[0, 0] = 0
+for k in range(1, ROW_COUNT + 1):
+    for end in range(k, n + 1):
+        for start in range(k - 1, end):
+            group = anchor_y[start:end]
+            center = np.median(group)
+            span = group[-1] - group[0]
+            cost = np.sum((group - center) ** 2) + 1000 * max(0, span - 16) ** 2
+            value = dp[k - 1, start] + cost
+            if value < dp[k, end]:
+                dp[k, end] = value
+                prev[k, end] = start
+
+row_groups = []
+end = n
+for k in range(ROW_COUNT, 0, -1):
+    start = prev[k, end]
+    row_groups.append(anchor_y[start:end])
+    end = start
+row_groups.reverse()
+row_y = [int(round(np.median(group))) for group in row_groups]
+print(f"\nRows: {row_y}")
+print(f"Row gaps: {[row_y[i + 1] - row_y[i] for i in range(len(row_y) - 1)]}")
+
+# Accumulate darkness around each anchor row. Local peaks recover the 24
+# columns even when their gaps vary between subgrids.
 darkness = np.clip(225 - hsv[:, :, 2].astype(float), 0, 225)
-x_profile = darkness[rect_top:rect_bot, rect_left:rect_right].sum(axis=0)
-x_profile = np.maximum(
-    x_profile - cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), 20 * scale).ravel(),
-    0,
+x_profile = np.zeros(W, dtype=float)
+for cy in row_y:
+    y0, y1 = max(0, cy - 8), min(H, cy + 9)
+    x_profile += darkness[y0:y1, :].sum(axis=0)
+x_profile[:rect_left] = 0
+x_profile[rect_right:] = 0
+baseline = cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), 12).ravel()
+x_profile = np.maximum(x_profile - baseline, 0)
+
+anchor_min_x = min(b[0] for b in blobs)
+anchor_max_x = max(b[0] for b in blobs)
+peak_min_x = max(rect_left, anchor_min_x - 8)
+peak_max_x = min(rect_right, anchor_max_x + 8)
+peaks, properties = find_peaks(
+    x_profile[peak_min_x:peak_max_x + 1],
+    distance=12,
+    prominence=30,
+    height=50,
 )
-peaks, _ = find_peaks(
-    x_profile,
-    distance=max(12, round(12 * scale)),
-    prominence=max(30, round(100 * scale * scale)),
-    height=max(50, round(100 * scale * scale)),
-)
-column_x = [int(p + rect_left) for p in peaks]
+column_x = [int(p + peak_min_x) for p in peaks]
 if len(column_x) != COL_COUNT:
-    raise RuntimeError(f"Expected {COL_COUNT} column peaks, found {len(column_x)}")
+    print(f"WARNING: expected {COL_COUNT} columns, found {len(column_x)} profile peaks")
+    ranked = sorted(column_x, key=lambda x: x_profile[x], reverse=True)
+    column_x = sorted(ranked[:COL_COUNT])
 print(f"Columns: {column_x}")
 print(f"Column gaps: {[column_x[i + 1] - column_x[i] for i in range(len(column_x) - 1)]}")
 
-# Recover row centers from the learned columns. If one row is too faint to
-# produce a profile peak, insert it at the largest unexplained vertical gap.
-y_profile = np.zeros(rect_bot - rect_top, dtype=float)
-for cx in column_x:
-    x0, x1 = max(0, cx - round(10 * scale)), min(W, cx + round(10 * scale) + 1)
-    y_profile += darkness[rect_top:rect_bot, x0:x1].sum(axis=1)
-y_profile = np.maximum(
-    y_profile - cv2.GaussianBlur(y_profile.reshape(-1, 1), (0, 0), 20 * scale).ravel(),
-    0,
-)
-y_peaks, _ = find_peaks(
-    y_profile,
-    distance=max(20, round(15 * scale)),
-    prominence=max(30, round(100 * scale * scale)),
-    height=max(50, round(100 * scale * scale)),
-)
-row_y = [int(p + rect_top) for p in y_peaks]
-while len(row_y) < ROW_COUNT:
-    gaps = [(row_y[i + 1] - row_y[i], i) for i in range(len(row_y) - 1)]
-    gap, index = max(gaps)
-    row_y.insert(index + 1, int(round((row_y[index] + row_y[index + 1]) / 2)))
-if len(row_y) > ROW_COUNT:
-    row_y = sorted(row_y, key=lambda y: y_profile[y - rect_top], reverse=True)[:ROW_COUNT]
-    row_y.sort()
-print(f"Rows: {row_y}")
-print(f"Row gaps: {[row_y[i + 1] - row_y[i] for i in range(len(row_y) - 1)]}")
-
 # Fit a small horizontal offset independently for each row. This handles the
 # slight local misalignment without forcing every row onto one x-lattice.
-row_band = min(20, max(10, int(min(np.diff(row_y)) * 0.45)))
 predicted = []
 for cy in row_y:
-    row_anchors = [(b[0], b[1]) for b in blobs if abs(b[1] - cy) <= row_band]
+    row_anchors = [(b[0], b[1]) for b in blobs if abs(b[1] - cy) <= 10]
     residuals = []
     for bx, _ in row_anchors:
         nearest = min(column_x, key=lambda x: abs(x - bx))
@@ -169,57 +186,20 @@ for cy in row_y:
         (x, int(round(y_intercept + y_slope * x)))
         for x in row_columns
     )
-    fit_errors = []
-    for bx, by in row_anchors:
-        nearest_x = min(row_columns, key=lambda x: abs(x - bx))
-        fit_errors.append(math.hypot(nearest_x - bx, y_intercept + y_slope * nearest_x - by))
-    print(f"  row y={cy}: anchors={len(row_anchors)} x_offset={offset} "
-          f"y_slope={y_slope * 1000:.1f}/1000px "
-          f"fit_median={np.median(fit_errors) if fit_errors else 0:.1f}px")
+    print(f"  row y={cy}: anchors={len(row_anchors)} x_offset={offset} y_slope={y_slope * 1000:.1f}/1000px")
 
-modeled = predicted
-predicted = []
-refine_radius = max(8, round(6 * scale))
-for px, py in modeled:
-    x0 = max(0, px - refine_radius)
-    x1 = min(W, px + refine_radius + 1)
-    y0 = max(0, py - refine_radius)
-    y1 = min(H, py + refine_radius + 1)
-
-    x_profile = darkness[max(0, py - refine_radius):min(H, py + refine_radius + 1), x0:x1].sum(axis=0)
-    x_profile = cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), max(1, scale)).ravel()
-    refined_x = x0 + int(np.argmax(x_profile))
-
-    y_profile = darkness[y0:y1, max(0, refined_x - refine_radius):min(W, refined_x + refine_radius + 1)].sum(axis=1)
-    y_profile = cv2.GaussianBlur(y_profile.reshape(-1, 1), (0, 0), max(1, scale)).ravel()
-    refined_y = y0 + int(np.argmax(y_profile))
-    predicted.append((refined_x, refined_y))
-
-refinement_error = [math.hypot(a - b, c - d) for (a, c), (b, d) in zip(predicted, modeled)]
-print(f"Center refinement: median shift={np.median(refinement_error):.1f}px max shift={max(refinement_error):.1f}px")
 print(f"Predicted positions: {len(predicted)} ({COL_COUNT} columns x {ROW_COUNT} rows)")
-anchor_errors = []
-for bx, by, _ in blobs:
-    anchor_errors.append(min(math.hypot(bx - px, by - py) for px, py in predicted))
-print(f"Anchor-to-prediction error: median={np.median(anchor_errors):.1f}px max={max(anchor_errors):.1f}px")
 
-with open("predicted_positions.json", "w") as f:
-    json.dump({
-        "rectangle": [rect_left, rect_top, rect_right, rect_bot],
-        "positions": [[int(x), int(y)] for x, y in predicted],
-        "rows": row_y,
-        "columns": column_x,
-    }, f, indent=2)
-print("Saved: predicted_positions.json")
-
-# Overlay only dot centers on the plain screenshot:
-# green = predicted positions, red/yellow = discovered Hough centers.
+# Overlay: green = predicted full grid, red/yellow = Hough anchor detections.
 img_out = img.copy()
+cv2.rectangle(img_out, (rect_left, rect_top), (rect_right, rect_bot), (0, 255, 0), 2)
 for x, y in predicted:
-    cv2.circle(img_out, (x, y), max(3, round(5 * scale)), (0, 255, 0), 2)
+    cv2.circle(img_out, (x, y), 5, (0, 255, 0), 1)
 for x, y, area in blobs:
-    cv2.circle(img_out, (x, y), max(4, round(8 * scale)), (0, 0, 255), 2)
-    cv2.drawMarker(img_out, (x, y), (0, 255, 255), cv2.MARKER_CROSS, max(8, round(12 * scale)), 2)
+    cv2.circle(img_out, (x, y), 9, (0, 0, 255), 2)
+    cv2.drawMarker(img_out, (x, y), (0, 255, 255), cv2.MARKER_CROSS, 12, 2)
+cv2.putText(img_out, f"Predicted: {len(predicted)}  Hough anchors: {len(blobs)}",
+            (rect_left, rect_top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 out_path = "/Users/admin/opencode-imagestudio/screenshots/detected_overlay.png"
 cv2.imwrite(out_path, img_out)
 print(f"\nSaved: {out_path}")
