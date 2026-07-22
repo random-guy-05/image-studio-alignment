@@ -260,6 +260,39 @@ print(f"Row gaps: {[row_y[i + 1] - row_y[i] for i in range(len(row_y) - 1)]}")
 def _anchor_count(cy, anchors):
     return sum(1 for bx, by, _ in anchors if abs(by - cy) <= max(5, round(spacing_y * 0.15)))
 
+# First: merge rows that are suspiciously close (same physical row split).
+row_y.sort()
+if len(row_y) > 1:
+    med_gap = float(np.median(np.diff(row_y)))
+    min_gap = max(8, round(med_gap * 0.45))
+    merged = []
+    i = 0
+    while i < len(row_y):
+        cluster = [row_y[i]]
+        j = i + 1
+        while j < len(row_y) and row_y[j] - cluster[-1] <= min_gap:
+            cluster.append(row_y[j])
+            j += 1
+        # Keep only the strongest peak in each close cluster.
+        if len(cluster) > 1:
+            merged.append(max(cluster, key=lambda y: y_profile[y - rect_top]))
+        else:
+            merged.append(cluster[0])
+        i = j
+    row_y = merged
+
+while len(row_y) < ROW_COUNT:
+    gaps = [(row_y[i + 1] - row_y[i], i) for i in range(len(row_y) - 1)]
+    _, index = max(gaps)
+    margin = max(1, round(spacing_y * 0.2))
+    y_start = row_y[index] + margin
+    y_end = row_y[index + 1] - margin
+    if y_end > y_start and y_start >= rect_top:
+        best_y = y_start + int(np.argmax(y_profile[y_start - rect_top:y_end - rect_top]))
+    else:
+        best_y = round((row_y[index] + row_y[index + 1]) / 2)
+    row_y.insert(index + 1, best_y)
+
 for _ in range(3):  # up to 3 rounds of cleanup
     changed = False
     for i in range(len(row_y)):
