@@ -144,7 +144,7 @@ print(f"Hough blobs inside rectangle (strict): {len(blobs)}")
 # Fully black dots have a more reliable center in their connected pixel mass
 # than in a circle fit. Only recenter compact black components; pale dots and
 # large/ambiguous dark regions are left unchanged.
-black_mask = cv2.inRange(hsv, np.array((0, 0, 0)), np.array((180, 50, 80)))
+black_mask = cv2.inRange(hsv, np.array((0, 0, 0)), np.array((180, 50, 100)))
 black_mask[:rect_top, :] = 0; black_mask[rect_bot:, :] = 0
 black_mask[:, :rect_left] = 0; black_mask[:, rect_right:] = 0
 black_count, black_labels, black_stats, black_centers = cv2.connectedComponentsWithStats(black_mask, 8)
@@ -159,12 +159,22 @@ for component in range(1, black_count):
 
 black_refined = 0
 refined_blobs = []
-black_search = max(10, round(black_est_spacing * 0.3))
+black_search = max(12, round(black_est_spacing * 0.45))
 for cx, cy, area in blobs:
     candidates = [component for component in black_components
                   if math.hypot(component[0] - cx, component[1] - cy) <= black_search]
     if candidates:
         bx, by, _, black_area = min(candidates, key=lambda component: math.hypot(component[0] - cx, component[1] - cy))
+        # Refine: weighted centroid of darkest pixels around the component center.
+        r = max(3, round(black_est_spacing * 0.15))
+        y0, y1 = max(0, int(by) - r), min(img.shape[0], int(by) + r + 1)
+        x0, x1 = max(0, int(bx) - r), min(img.shape[1], int(bx) + r + 1)
+        patch = 255 - hsv[y0:y1, x0:x1, 2].astype(float)
+        total = patch.sum()
+        if total > 0:
+            cy_grid, cx_grid = np.mgrid[y0:y1, x0:x1]
+            by = (cy_grid * patch).sum() / total
+            bx = (cx_grid * patch).sum() / total
         refined_blobs.append((round(bx), round(by), max(area, black_area)))
         black_refined += 1
     else:
@@ -292,6 +302,7 @@ for distance, position_index, anchor_index in candidate_matches:
 
 # Refine only model-only positions when the local blot is strong enough to be
 # trusted. Pale positions remain exactly at the Hough-derived model center.
+# Use weighted centroid instead of argmax — finds center of dark mass, not edge.
 refine_radius = max(6, round(6 * max(1.0, W / 1920)))
 anchor_strengths = []
 for bx, by, _ in blobs:
@@ -311,14 +322,14 @@ for position_index, (px, py) in enumerate(predicted):
     peak_strength = float(patch.max())
     if peak_strength < refine_cutoff:
         continue
-    x_local = patch.sum(axis=0)
-    x_local = cv2.GaussianBlur(x_local.reshape(1, -1), (0, 0), max(1, refine_radius / 3)).ravel()
-    refined_x = x0 + int(np.argmax(x_local))
-    y_local = patch[:, max(0, refined_x - x0 - refine_radius):min(patch.shape[1], refined_x - x0 + refine_radius + 1)].sum(axis=1)
-    y_local = cv2.GaussianBlur(y_local.reshape(-1, 1), (0, 0), max(1, refine_radius / 3)).ravel()
-    refined_y = y0 + int(np.argmax(y_local))
-    predicted[position_index] = (refined_x, refined_y)
-    refined_positions += 1
+    # Weighted centroid finds the true center, not the darkest edge pixel.
+    total = patch.sum()
+    if total > 0:
+        yy_grid, xx_grid = np.mgrid[y0:y1, x0:x1]
+        refined_x = int(round((xx_grid * patch).sum() / total))
+        refined_y = int(round((yy_grid * patch).sum() / total))
+        predicted[position_index] = (refined_x, refined_y)
+        refined_positions += 1
 
 print(f"Hough-anchored centers: {len(used_positions)}; model-only centers: {len(predicted) - len(used_positions)}")
 print(f"Conditional center refinement: {refined_positions} positions; confidence cutoff={refine_cutoff:.1f}")
