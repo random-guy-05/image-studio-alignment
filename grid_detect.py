@@ -139,9 +139,7 @@ for cx, cy, area, rr, center_v in raw_blobs:
     dedup.append((cx, cy, area, rr, center_v))
 
 blobs = [(b[0], b[1], b[2]) for b in dedup]
-print(f"\n{'='*60}")
-print(f"  DATA DOTS DETECTED: {len(blobs)}")
-print(f"{'='*60}\n")
+print(f"\n=== DATA DOTS DETECTED: {len(blobs)} ===\n")
 
 # Fully black dots have a more reliable center in their connected pixel mass
 # than in a circle fit. Only recenter compact black components; pale dots and
@@ -169,17 +167,15 @@ for cx, cy, area in blobs:
     else:
         refined_blobs.append((cx, cy, area))
 blobs = refined_blobs
-print(f"\n{'='*60}")
-print(f"  BLACK-BLOB CENTER CORRECTIONS: {black_refined}")
-print(f"{'='*60}\n")
+print(f"\n=== BLACK-BLOB CENTER CORRECTIONS: {black_refined} ===\n")
 
 # Prompt user for grid dimensions.
 default_rows = 10
 default_cols = 24
 print(f"Grid layout (default {default_rows}x{default_cols}):")
 try:
-    ROW_COUNT = int(input(f"  Number of rows [{default_rows}]: ") or default_rows)
-    COL_COUNT = int(input(f"  Number of columns [{default_cols}]: ") or default_cols)
+    ROW_COUNT = int(input(f"  Rows [{default_rows}]: ") or default_rows)
+    COL_COUNT = int(input(f"  Cols [{default_cols}]: ") or default_cols)
 except (EOFError, KeyboardInterrupt):
     ROW_COUNT = default_rows
     COL_COUNT = default_cols
