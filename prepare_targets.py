@@ -3,6 +3,7 @@
 import json
 import math
 import subprocess
+import sys
 import time
 
 import cv2
@@ -98,11 +99,14 @@ def main():
     ]
     if not blues:
         raise RuntimeError("No blue outlines detected inside the data rectangle")
-    if not EXPECTED_BLUE_COUNT - BLUE_COUNT_TOLERANCE <= len(blues) <= EXPECTED_BLUE_COUNT + BLUE_COUNT_TOLERANCE:
+    resume = "--resume" in sys.argv
+    if not resume and not EXPECTED_BLUE_COUNT - BLUE_COUNT_TOLERANCE <= len(blues) <= EXPECTED_BLUE_COUNT + BLUE_COUNT_TOLERANCE:
         raise RuntimeError(
             f"Expected {EXPECTED_BLUE_COUNT} +/- {BLUE_COUNT_TOLERANCE} blue outlines, "
             f"detected {len(blues)}; refusing to prepare drags"
         )
+    if resume and len(blues) > EXPECTED_BLUE_COUNT:
+        raise RuntimeError(f"Resume detected {len(blues)} blue outlines; refusing more than {EXPECTED_BLUE_COUNT}")
     if len(blues) > len(positions):
         raise RuntimeError(f"Detected {len(blues)} blue outlines but only {len(positions)} targets exist")
 
