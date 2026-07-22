@@ -141,6 +141,34 @@ for cx, cy, area, rr, center_v in raw_blobs:
 blobs = [(b[0], b[1], b[2]) for b in dedup]
 print(f"Hough blobs inside rectangle (strict): {len(blobs)}")
 
+# Fully black dots have a more reliable center in their connected pixel mass
+# than in a circle fit. Only recenter compact black components; pale dots and
+# large/ambiguous dark regions are left unchanged.
+black_mask = cv2.inRange(hsv, np.array((0, 0, 0)), np.array((180, 50, 80)))
+black_mask[:rect_top, :] = 0; black_mask[rect_bot:, :] = 0
+black_mask[:, :rect_left] = 0; black_mask[:, rect_right:] = 0
+black_count, black_labels, black_stats, black_centers = cv2.connectedComponentsWithStats(black_mask, 8)
+black_components = []
+for component in range(1, black_count):
+    bx, by, bw, bh, area = black_stats[component]
+    cx, cy = black_centers[component]
+    if area >= 5 and bw <= 20 and bh <= 20:
+        black_components.append((cx, cy, component, area))
+
+black_refined = 0
+refined_blobs = []
+for cx, cy, area in blobs:
+    candidates = [component for component in black_components
+                  if math.hypot(component[0] - cx, component[1] - cy) <= 8]
+    if candidates:
+        bx, by, _, black_area = min(candidates, key=lambda component: math.hypot(component[0] - cx, component[1] - cy))
+        refined_blobs.append((round(bx), round(by), max(area, black_area)))
+        black_refined += 1
+    else:
+        refined_blobs.append((cx, cy, area))
+blobs = refined_blobs
+print(f"Black-component center corrections: {black_refined}")
+
 # Infer columns and rows from independent darkness profiles. The profiles
 # retain uneven gaps while avoiding false Hough detections as structure.
 ROW_COUNT = 10
