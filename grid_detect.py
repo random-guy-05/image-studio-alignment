@@ -202,8 +202,16 @@ def fit_grid(anchors):
 # Reject Hough candidates that do not land near the first structural model.
 # This keeps the overlay and refit anchor set false-positive conservative.
 initial_model = fit_grid(blobs)
-anchor_distances = [min(math.hypot(b[0] - x, b[1] - y) for x, y in initial_model) for b in blobs]
-blobs = [b for b, distance in zip(blobs, anchor_distances) if distance <= 8]
+anchor_distances = np.array([
+    min(math.hypot(b[0] - x, b[1] - y) for x, y in initial_model)
+    for b in blobs
+])
+distance_median = float(np.median(anchor_distances))
+distance_mad = float(np.median(np.abs(anchor_distances - distance_median)))
+robust_sigma = max(0.5, 1.4826 * distance_mad)
+anchor_cutoff = max(6.0, distance_median + 3.0 * robust_sigma)
+blobs = [b for b, distance in zip(blobs, anchor_distances) if distance <= anchor_cutoff]
+print(f"Anchor residuals: median={distance_median:.1f}px MAD={distance_mad:.1f}px cutoff={anchor_cutoff:.1f}px")
 print(f"Certain anchors after structural filter: {len(blobs)} (removed {len(anchor_distances) - len(blobs)})")
 predicted = fit_grid(blobs)
 
