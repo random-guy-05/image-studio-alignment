@@ -258,7 +258,7 @@ print(f"Row gaps: {[row_y[i + 1] - row_y[i] for i in range(len(row_y) - 1)]}")
 # Ghost-row cleanup: any row with zero nearby anchors is suspect.
 # Replace it with the strongest signal in the largest adjacent gap.
 def _anchor_count(cy, anchors):
-    return sum(1 for bx, by in anchors if abs(by - cy) <= max(5, round(spacing_y * 0.15)))
+    return sum(1 for bx, by, _ in anchors if abs(by - cy) <= max(5, round(spacing_y * 0.15)))
 
 for _ in range(3):  # up to 3 rounds of cleanup
     changed = False
