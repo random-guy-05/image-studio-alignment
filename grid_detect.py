@@ -169,10 +169,18 @@ for cx, cy, area in blobs:
 blobs = refined_blobs
 print(f"Black-component center corrections: {black_refined}")
 
-# Infer columns and rows from independent darkness profiles. The profiles
-# retain uneven gaps while avoiding false Hough detections as structure.
-ROW_COUNT = 10
-COL_COUNT = 24
+# Prompt user for grid dimensions.
+default_rows = 10
+default_cols = 24
+print(f"Grid layout (default {default_rows}x{default_cols}):")
+try:
+    ROW_COUNT = int(input(f"  Rows [{default_rows}]: ") or default_rows)
+    COL_COUNT = int(input(f"  Cols [{default_cols}]: ") or default_cols)
+except (EOFError, KeyboardInterrupt):
+    ROW_COUNT = default_rows
+    COL_COUNT = default_cols
+print(f"Using {ROW_COUNT} rows x {COL_COUNT} columns\n")
+
 darkness = np.clip(225 - hsv[:, :, 2].astype(float), 0, 225)
 x_profile = darkness[rect_top:rect_bot, rect_left:rect_right].sum(axis=0)
 x_profile = np.maximum(x_profile - cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), 10).ravel(), 0)
