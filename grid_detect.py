@@ -3,12 +3,13 @@ Cytokine arrays are printed in a regular grid. If we find the grid spacing,
 we can predict every dot position and just check if a dot exists there.
 This eliminates false positives (gaps) and finds faint dots (we look at
 specific positions, not everywhere)."""
+import json
 import cv2, numpy as np
 import math
 from collections import Counter, defaultdict
 from scipy.signal import find_peaks
 
-img = cv2.imread("/tmp/dots.png")
+img = cv2.imread("screenshots/dots.png")
 H, W = img.shape[:2]
 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
@@ -188,18 +189,43 @@ for cy in row_y:
     )
     print(f"  row y={cy}: anchors={len(row_anchors)} x_offset={offset} y_slope={y_slope * 1000:.1f}/1000px")
 
+modeled = predicted
+predicted = []
+refine_radius = max(6, round(6 * max(1.0, W / 1920)))
+for px, py in modeled:
+    x0 = max(0, px - refine_radius)
+    x1 = min(W, px + refine_radius + 1)
+    y0 = max(0, py - refine_radius)
+    y1 = min(H, py + refine_radius + 1)
+
+    x_local = darkness[max(0, py - refine_radius):min(H, py + refine_radius + 1), x0:x1].sum(axis=0)
+    x_local = cv2.GaussianBlur(x_local.reshape(1, -1), (0, 0), max(1, refine_radius / 3)).ravel()
+    refined_x = x0 + int(np.argmax(x_local))
+
+    y_local = darkness[y0:y1, max(0, refined_x - refine_radius):min(W, refined_x + refine_radius + 1)].sum(axis=1)
+    y_local = cv2.GaussianBlur(y_local.reshape(-1, 1), (0, 0), max(1, refine_radius / 3)).ravel()
+    refined_y = y0 + int(np.argmax(y_local))
+    predicted.append((refined_x, refined_y))
+
+print(f"Center refinement: median shift={np.median([math.hypot(a - b, c - d) for (a, c), (b, d) in zip(predicted, modeled)]):.1f}px")
 print(f"Predicted positions: {len(predicted)} ({COL_COUNT} columns x {ROW_COUNT} rows)")
 
-# Overlay: green = predicted full grid, red/yellow = Hough anchor detections.
+with open("predicted_positions.json", "w") as f:
+    json.dump({
+        "rectangle": [rect_left, rect_top, rect_right, rect_bot],
+        "positions": [[int(x), int(y)] for x, y in predicted],
+        "rows": row_y,
+        "columns": column_x,
+    }, f, indent=2)
+print("Saved: predicted_positions.json")
+
+# Overlay only centers on the plain blot screenshot.
 img_out = img.copy()
-cv2.rectangle(img_out, (rect_left, rect_top), (rect_right, rect_bot), (0, 255, 0), 2)
 for x, y in predicted:
-    cv2.circle(img_out, (x, y), 5, (0, 255, 0), 1)
+    cv2.circle(img_out, (x, y), 5, (0, 255, 0), 2)
 for x, y, area in blobs:
     cv2.circle(img_out, (x, y), 9, (0, 0, 255), 2)
     cv2.drawMarker(img_out, (x, y), (0, 255, 255), cv2.MARKER_CROSS, 12, 2)
-cv2.putText(img_out, f"Predicted: {len(predicted)}  Hough anchors: {len(blobs)}",
-            (rect_left, rect_top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 out_path = "/Users/admin/opencode-imagestudio/screenshots/detected_overlay.png"
 cv2.imwrite(out_path, img_out)
 print(f"\nSaved: {out_path}")
