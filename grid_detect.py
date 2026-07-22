@@ -262,9 +262,11 @@ def _anchor_count(cy, anchors):
 
 # First: merge rows that are suspiciously close (same physical row split).
 row_y.sort()
+print(f"DEBUG pre-merge: {len(row_y)} rows, gaps={[row_y[i+1]-row_y[i] for i in range(len(row_y)-1)]}")
 if len(row_y) > 1:
     med_gap = float(np.median(np.diff(row_y)))
     min_gap = max(8, round(med_gap * 0.45))
+    print(f"DEBUG med_gap={med_gap:.1f} min_gap={min_gap}")
     merged = []
     i = 0
     while i < len(row_y):
