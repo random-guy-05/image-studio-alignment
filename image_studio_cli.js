@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 const { existsSync } = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
