@@ -218,8 +218,15 @@ y_peaks, _ = find_peaks(y_profile, distance=y_spacing_peak, prominence=y_promine
 row_y = [int(p + rect_top) for p in y_peaks]
 while len(row_y) < ROW_COUNT:
     gaps = [(row_y[i + 1] - row_y[i], i) for i in range(len(row_y) - 1)]
-    _, index = max(gaps)
-    row_y.insert(index + 1, round((row_y[index] + row_y[index + 1]) / 2))
+    gap_size, index = max(gaps)
+    margin = max(1, round(est_spacing * 0.2))
+    y_start = row_y[index] + margin
+    y_end = row_y[index + 1] - margin
+    if y_end > y_start and y_start >= rect_top:
+        best_y = y_start + int(np.argmax(y_profile[y_start - rect_top:y_end - rect_top]))
+    else:
+        best_y = round((row_y[index] + row_y[index + 1]) / 2)
+    row_y.insert(index + 1, best_y)
 if len(row_y) > ROW_COUNT:
     row_y = sorted(row_y, key=lambda y: y_profile[y - rect_top], reverse=True)[:ROW_COUNT]
     row_y.sort()
@@ -304,7 +311,7 @@ for distance, position_index, anchor_index in candidate_matches:
 
 # Refine only model-only positions when the local blot is strong enough to be
 # trusted. Pale positions remain exactly at the Hough-derived model center.
-refine_radius = max(6, round(6 * max(1.0, W / 1920)))
+refine_radius = max(8, round(est_spacing * 0.3))
 anchor_strengths = []
 for bx, by, _ in blobs:
     patch = darkness[max(0, by - refine_radius):min(H, by + refine_radius + 1),
