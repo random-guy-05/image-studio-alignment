@@ -7,7 +7,7 @@
     "image-studio": "image_studio_cli.js"
   },
   "scripts": {
-    "postinstall": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
+    "postinstall": "python3 -c \"import subprocess as s, sys; v=s.run([sys.executable,'-m','venv','.venv']); p=s.run(['.venv/bin/pip','install','numpy','opencv-python','scipy','pyautogui','PyGetWindow','pynput']); raise SystemExit(p.returncode)\"",
     "image-studio": "node image_studio_cli.js run",
     "detect": "node image_studio_cli.js detect",
     "targets": "node image_studio_cli.js prepare",
