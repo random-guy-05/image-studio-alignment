@@ -1,6 +1,6 @@
 # ImageStudio Alignment
 
-Mac automation for moving ImageStudio’s blue outline circles onto a learned 10x24 blot grid.
+Cross-platform automation for moving ImageStudio’s blue outline circles onto a learned 10x24 blot grid.
 
 The project treats the modeled 240 positions as definitive targets. It uses conservative Hough anchors, uneven row/column modeling, row tilt correction, black-blot center correction, verifier-driven repair, and resumable alignment.
 
@@ -23,6 +23,13 @@ image-studio init
 ```
 
 The npm installer creates the private Python environment automatically. No repository clone is required.
+
+After installation, the complete happy path is:
+
+```bash
+image-studio init
+image-studio run
+```
 
 ### macOS, Intel or Apple Silicon
 
