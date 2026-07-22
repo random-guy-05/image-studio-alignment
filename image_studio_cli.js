@@ -23,10 +23,10 @@ if (!existsSync(venvPython)) {
 
 let runner = existsSync(venvPython) ? venvPython : systemPython;
 
-// Verify pyautogui works in the chosen runner; fall back to system Python on version mismatches.
-const test = spawnSync(runner, ["-c", "import pyautogui"], { stdio: "pipe" });
+// Verify pyautogui can actually take a screenshot; fall back on version mismatches.
+const test = spawnSync(runner, ["-c", "import pyautogui; pyautogui.screenshot()"], { stdio: "pipe", timeout: 15000 });
 if (test.status !== 0 && runner !== systemPython) {
-  console.log("venv Python has a pyautogui issue; falling back to system Python.");
+  console.log("venv Python has a pyautogui issue (Python 3.14?); falling back to system Python.");
   runner = systemPython;
 }
 
