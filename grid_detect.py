@@ -191,11 +191,11 @@ print(f"\n=== BLACK-BLOB CENTER CORRECTIONS: {black_refined} ===\n")
 
 darkness = np.clip(225 - hsv[:, :, 2].astype(float), 0, 225)
 x_profile = darkness[rect_top:rect_bot, rect_left:rect_right].sum(axis=0)
-blur_width = max(6, round(est_spacing * 0.4))
-x_profile = np.maximum(x_profile - cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), blur_width).ravel(), 0)
-x_spacing_peak = max(10, round(est_spacing * 0.45))
-x_prominence = max(30, round(est_spacing * 3))
-peaks, _ = find_peaks(x_profile, distance=x_spacing_peak, prominence=x_prominence, height=x_prominence)
+x_blur = max(6, round(spacing_x * 0.35))
+x_profile = np.maximum(x_profile - cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), x_blur).ravel(), 0)
+x_distance = max(8, round(spacing_x * 0.4))
+x_prom = max(30, round(spacing_x * 2.5))
+peaks, _ = find_peaks(x_profile, distance=x_distance, prominence=x_prom, height=x_prom)
 column_x = [int(p + rect_left) for p in peaks]
 if len(column_x) > COL_COUNT:
     anchor_max_x = max(b[0] for b in blobs)
@@ -209,17 +209,19 @@ print(f"Columns: {column_x}")
 print(f"Column gaps: {[column_x[i + 1] - column_x[i] for i in range(len(column_x) - 1)]}")
 
 y_profile = np.zeros(rect_bot - rect_top, dtype=float)
+y_window = max(3, round(spacing_x * 0.2))
 for cx in column_x:
-    y_profile += darkness[rect_top:rect_bot, max(0, cx - 5):min(W, cx + 6)].sum(axis=1)
-y_profile = np.maximum(y_profile - cv2.GaussianBlur(y_profile.reshape(-1, 1), (0, 0), blur_width).ravel(), 0)
-y_spacing_peak = max(12, round(est_spacing * 0.55))
-y_prominence = max(30, round(est_spacing * 3))
-y_peaks, _ = find_peaks(y_profile, distance=y_spacing_peak, prominence=y_prominence, height=y_prominence)
+    y_profile += darkness[rect_top:rect_bot, max(0, cx - y_window):min(W, cx + y_window + 1)].sum(axis=1)
+y_blur = max(6, round(spacing_y * 0.35))
+y_profile = np.maximum(y_profile - cv2.GaussianBlur(y_profile.reshape(-1, 1), (0, 0), y_blur).ravel(), 0)
+y_distance = max(10, round(spacing_y * 0.65))
+y_prom = max(30, round(spacing_y * 2.5))
+y_peaks, _ = find_peaks(y_profile, distance=y_distance, prominence=y_prom, height=y_prom)
 row_y = [int(p + rect_top) for p in y_peaks]
 while len(row_y) < ROW_COUNT:
     gaps = [(row_y[i + 1] - row_y[i], i) for i in range(len(row_y) - 1)]
     gap_size, index = max(gaps)
-    margin = max(1, round(est_spacing * 0.2))
+    margin = max(1, round(spacing_y * 0.2))
     y_start = row_y[index] + margin
     y_end = row_y[index + 1] - margin
     if y_end > y_start and y_start >= rect_top:
