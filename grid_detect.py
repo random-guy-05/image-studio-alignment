@@ -105,37 +105,17 @@ broad_mask = cv2.inRange(hsv, np.array((0, 0, 0)), np.array((180, 80, 250)))
 broad_mask[:rect_top, :] = 0; broad_mask[rect_bot:, :] = 0
 broad_mask[:, :rect_left] = 0; broad_mask[:, rect_right:] = 0
 
-# Prompt user for grid dimensions before any detection,
-# so parameters can scale to the image.
-default_rows = 10
-default_cols = 24
-print(f"Grid layout (default {default_rows}x{default_cols}):")
-try:
-    ROW_COUNT = int(input(f"  Rows [{default_rows}]: ") or default_rows)
-    COL_COUNT = int(input(f"  Cols [{default_cols}]: ") or default_cols)
-except (EOFError, KeyboardInterrupt):
-    ROW_COUNT = default_rows
-    COL_COUNT = default_cols
-print(f"Using {ROW_COUNT} rows x {COL_COUNT} columns\n")
-
-# Estimate dot spacing from rectangle size; scales detection parameters.
-rect_w = rect_right - rect_left
-rect_h = rect_bot - rect_top
-spacing_x = rect_w / max(COL_COUNT - 1, 1)
-spacing_y = rect_h / max(ROW_COUNT - 1, 1)
-est_spacing = (spacing_x + spacing_y) / 2
-
 # Find blobs with HoughCircles (conservative: no false positives, FN acceptable)
 blurred = cv2.GaussianBlur(data_mask, (5, 5), 1)
 circles = cv2.HoughCircles(
     blurred,
     cv2.HOUGH_GRADIENT,
     dp=1,
-    minDist=max(12, round(est_spacing * 0.6)),
+    minDist=15,
     param1=80,
-    param2=10,
-    minRadius=max(2, round(est_spacing * 0.1)),
-    maxRadius=max(10, round(est_spacing * 0.55)),
+    param2=12,
+    minRadius=3,
+    maxRadius=15,
 )
 
 raw_blobs = []
@@ -159,7 +139,7 @@ for cx, cy, area, rr, center_v in raw_blobs:
     dedup.append((cx, cy, area, rr, center_v))
 
 blobs = [(b[0], b[1], b[2]) for b in dedup]
-print(f"\n=== DATA DOTS DETECTED: {len(blobs)} ===\n")
+print(f"Hough blobs inside rectangle (strict): {len(blobs)}")
 
 # Fully black dots have a more reliable center in their connected pixel mass
 # than in a circle fit. Only recenter compact black components; pale dots and
@@ -172,14 +152,14 @@ black_components = []
 for component in range(1, black_count):
     bx, by, bw, bh, area = black_stats[component]
     cx, cy = black_centers[component]
-    if area >= 5 and bw <= max(15, round(est_spacing * 0.7)) and bh <= max(15, round(est_spacing * 0.7)):
+    if area >= 5 and bw <= 20 and bh <= 20:
         black_components.append((cx, cy, component, area))
 
 black_refined = 0
 refined_blobs = []
 for cx, cy, area in blobs:
     candidates = [component for component in black_components
-                  if math.hypot(component[0] - cx, component[1] - cy) <= max(8, round(est_spacing * 0.35))]
+                  if math.hypot(component[0] - cx, component[1] - cy) <= 8]
     if candidates:
         bx, by, _, black_area = min(candidates, key=lambda component: math.hypot(component[0] - cx, component[1] - cy))
         refined_blobs.append((round(bx), round(by), max(area, black_area)))
@@ -187,113 +167,46 @@ for cx, cy, area in blobs:
     else:
         refined_blobs.append((cx, cy, area))
 blobs = refined_blobs
-print(f"\n=== BLACK-BLOB CENTER CORRECTIONS: {black_refined} ===\n")
+print(f"Black-component center corrections: {black_refined}")
 
+# Infer columns and rows from independent darkness profiles. The profiles
+# retain uneven gaps while avoiding false Hough detections as structure.
+ROW_COUNT = 10
+COL_COUNT = 24
 darkness = np.clip(225 - hsv[:, :, 2].astype(float), 0, 225)
 x_profile = darkness[rect_top:rect_bot, rect_left:rect_right].sum(axis=0)
-x_blur = max(6, round(spacing_x * 0.35))
-x_profile = np.maximum(x_profile - cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), x_blur).ravel(), 0)
-x_distance = max(8, round(spacing_x * 0.4))
-x_prom = max(30, round(spacing_x * 2.5))
-peaks, _ = find_peaks(x_profile, distance=x_distance, prominence=x_prom, height=x_prom)
+x_profile = np.maximum(x_profile - cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), 10).ravel(), 0)
+peaks, _ = find_peaks(x_profile, distance=12, prominence=80, height=80)
 column_x = [int(p + rect_left) for p in peaks]
 if len(column_x) > COL_COUNT:
     anchor_max_x = max(b[0] for b in blobs)
     column_x = [x for x in column_x if x <= anchor_max_x + 12]
-if len(column_x) > COL_COUNT:
-    column_x = sorted(column_x, key=lambda x: x_profile[x - rect_left], reverse=True)[:COL_COUNT]
-    column_x.sort()
-if len(column_x) < COL_COUNT:
-    raise RuntimeError(f"Expected {COL_COUNT} column peaks, found only {len(column_x)}")
+if len(column_x) != COL_COUNT:
+    raise RuntimeError(f"Expected {COL_COUNT} column peaks, found {len(column_x)}")
 print(f"Columns: {column_x}")
 print(f"Column gaps: {[column_x[i + 1] - column_x[i] for i in range(len(column_x) - 1)]}")
 
 y_profile = np.zeros(rect_bot - rect_top, dtype=float)
-y_window = max(3, round(spacing_x * 0.2))
 for cx in column_x:
-    y_profile += darkness[rect_top:rect_bot, max(0, cx - y_window):min(W, cx + y_window + 1)].sum(axis=1)
-y_blur = max(6, round(spacing_y * 0.35))
-y_profile = np.maximum(y_profile - cv2.GaussianBlur(y_profile.reshape(-1, 1), (0, 0), y_blur).ravel(), 0)
-y_distance = max(5, round(spacing_y * 0.1))
-y_prom = max(10, round(spacing_y * 0.5))
-y_peaks, _ = find_peaks(y_profile, distance=y_distance, prominence=y_prom, height=y_prom)
-row_candidates = [int(p + rect_top) for p in y_peaks]
-
-# Greedy selection: keep strongest peaks, enforce minimum row spacing.
-min_row_gap = max(10, round(spacing_y * 0.55))
-row_candidates.sort(key=lambda y: y_profile[y - rect_top], reverse=True)
-row_y = []
-for cy in row_candidates:
-    if all(abs(cy - existing) >= min_row_gap for existing in row_y):
-        row_y.append(cy)
-    if len(row_y) >= ROW_COUNT:
-        break
-row_y.sort()
-
-# Fill remaining gaps — find the strongest signal anywhere that respects spacing.
-row_y.sort()
+    y_profile += darkness[rect_top:rect_bot, max(0, cx - 5):min(W, cx + 6)].sum(axis=1)
+y_profile = np.maximum(y_profile - cv2.GaussianBlur(y_profile.reshape(-1, 1), (0, 0), 10).ravel(), 0)
+y_peaks, _ = find_peaks(y_profile, distance=15, prominence=80, height=80)
+row_y = [int(p + rect_top) for p in y_peaks]
 while len(row_y) < ROW_COUNT:
-    # Score every gap position by profile height, filter by min spacing.
-    best_score, best_y, best_index = 0, None, None
-    for i in range(len(row_y) - 1):
-        margin = max(1, round(spacing_y * 0.15))
-        y_start = max(rect_top + margin, row_y[i] + margin)
-        y_end = min(rect_bot - margin, row_y[i + 1] - margin)
-        if y_end <= y_start:
-            continue
-        seg = y_profile[y_start - rect_top:y_end - rect_top]
-        if len(seg) == 0:
-            continue
-        peak_y = y_start + int(np.argmax(seg))
-        score = y_profile[peak_y - rect_top]
-        if score > best_score and all(abs(peak_y - existing) >= min_row_gap for existing in row_y):
-            best_score, best_y, best_index = score, peak_y, i
-    if best_y is None:
-        best_y = round((row_y[0] + row_y[-1]) / 2)  # last resort midpoint
-        best_index = len(row_y) - 1
-    row_y.insert(best_index + 1, best_y if best_y is not None else round(spacing_y))
-
+    gaps = [(row_y[i + 1] - row_y[i], i) for i in range(len(row_y) - 1)]
+    _, index = max(gaps)
+    row_y.insert(index + 1, round((row_y[index] + row_y[index + 1]) / 2))
+if len(row_y) > ROW_COUNT:
+    row_y = sorted(row_y, key=lambda y: y_profile[y - rect_top], reverse=True)[:ROW_COUNT]
+    row_y.sort()
 print(f"\nRows: {row_y}")
 print(f"Row gaps: {[row_y[i + 1] - row_y[i] for i in range(len(row_y) - 1)]}")
-
-# Ghost-row cleanup: any row with zero nearby anchors is suspect.
-def _anchor_count(cy, anchors):
-    return sum(1 for bx, by, _ in anchors if abs(by - cy) <= max(5, round(spacing_y * 0.15)))
-
-for _ in range(3):  # up to 3 rounds of cleanup
-    changed = False
-    for i in range(len(row_y)):
-        if _anchor_count(row_y[i], blobs) > 0:
-            continue
-        # Find the better of the two adjacent gaps.
-        candidates = []
-        if i > 0:
-            gap_above = row_y[i] - row_y[i - 1]
-            mid = round((row_y[i] + row_y[i - 1]) / 2)
-            m = max(1, round(spacing_y * 0.15))
-            y1, y2 = row_y[i-1] + m, row_y[i] - m
-            if y2 > y1:
-                candidates.append(y1 + int(np.argmax(y_profile[y1 - rect_top:y2 - rect_top])))
-        if i < len(row_y) - 1:
-            gap_below = row_y[i + 1] - row_y[i]
-            mid = round((row_y[i] + row_y[i + 1]) / 2)
-            m = max(1, round(spacing_y * 0.15))
-            y1, y2 = row_y[i] + m, row_y[i+1] - m
-            if y2 > y1:
-                candidates.append(y1 + int(np.argmax(y_profile[y1 - rect_top:y2 - rect_top])))
-        if candidates:
-            row_y[i] = max(candidates, key=lambda y: y_profile[y - rect_top])
-            changed = True
-    if not changed:
-        break
-row_y.sort()
-print(f"Cleaned rows: {row_y}")
 
 def fit_grid(anchors):
     stable_slopes = []
     for cy in row_y:
         row_anchors = [(b[0], b[1]) for b in anchors if abs(b[1] - cy) <= 10]
-        if len(row_anchors) >= 8:
+        if len(row_anchors) >= 5:
             anchor_x = np.array([p[0] for p in row_anchors], dtype=float)
             anchor_y = np.array([p[1] for p in row_anchors], dtype=float)
             stable_slopes.append(np.polyfit(anchor_x, anchor_y, 1)[0])
@@ -309,7 +222,7 @@ def fit_grid(anchors):
                 residuals.append(bx - nearest)
         offset = int(round(float(np.median(residuals)))) if residuals else 0
         row_columns = [x + offset for x in column_x]
-        if len(row_anchors) >= 8:
+        if len(row_anchors) >= 5:
             anchor_x = np.array([p[0] for p in row_anchors], dtype=float)
             anchor_y = np.array([p[1] for p in row_anchors], dtype=float)
             y_slope, y_intercept = np.polyfit(anchor_x, anchor_y, 1)
@@ -339,36 +252,13 @@ blobs = [b for b, distance in zip(blobs, anchor_distances) if distance <= anchor
 print(f"Anchor residuals: median={distance_median:.1f}px MAD={distance_mad:.1f}px cutoff={anchor_cutoff:.1f}px")
 print(f"Certain anchors after structural filter: {len(blobs)} (removed {len(anchor_distances) - len(blobs)})")
 
-# Prune rows that lost all anchors after structural filtering.
-# A row with zero certain anchors should not produce predictions.
-anchor_counts = [_anchor_count(cy, blobs) for cy in row_y]
-print(f"Anchors per row: {dict(zip(row_y, anchor_counts))}")
+# Remove any row with no remaining certain anchors.
+def _count(c, a):
+    return sum(1 for _, y, _ in a if abs(y - c) <= 12)
 for i in range(len(row_y) - 1, -1, -1):
-    if anchor_counts[i] == 0:
+    if _count(row_y[i], blobs) == 0:
         print(f"  dropping row y={row_y[i]} (0 anchors)")
         del row_y[i]
-while len(row_y) < ROW_COUNT:
-    best_score, best_y = 0, None
-    for k in range(len(row_y) - 1):
-        m = max(1, round(spacing_y * 0.15))
-        y1, y2 = max(rect_top + m, row_y[k] + m), min(rect_bot - m, row_y[k+1] - m)
-        if y2 <= y1: continue
-        seg = y_profile[y1 - rect_top:y2 - rect_top]
-        if len(seg) == 0: continue
-        py = y1 + int(np.argmax(seg))
-        if y_profile[py - rect_top] > best_score:
-            best_score, best_y = float(y_profile[py - rect_top]), py
-    if best_y is None:
-        best_y = round(row_y[0] + (row_y[-1] - row_y[0]) / 2)
-    if all(abs(best_y - existing) >= min_row_gap for existing in row_y):
-        row_y.append(best_y)
-        row_y.sort()
-    else:
-        gaps = [(row_y[i + 1] - row_y[i], i) for i in range(len(row_y) - 1)]
-        _, idx = max(gaps)
-        row_y.append(round((row_y[idx] + row_y[idx + 1]) / 2))
-        row_y.sort()
-print(f"Pruned rows: {row_y}")
 
 predicted = fit_grid(blobs)
 
@@ -399,7 +289,7 @@ for distance, position_index, anchor_index in candidate_matches:
 
 # Refine only model-only positions when the local blot is strong enough to be
 # trusted. Pale positions remain exactly at the Hough-derived model center.
-refine_radius = max(8, round(est_spacing * 0.3))
+refine_radius = max(6, round(6 * max(1.0, W / 1920)))
 anchor_strengths = []
 for bx, by, _ in blobs:
     patch = darkness[max(0, by - refine_radius):min(H, by + refine_radius + 1),
@@ -450,6 +340,6 @@ for x, y, area in blobs:
     center = (round(x * scale_x), round(y * scale_y))
     cv2.circle(img_out, center, round(9 * scale_x), (0, 0, 255), 2)
     cv2.drawMarker(img_out, center, (0, 255, 255), cv2.MARKER_CROSS, round(12 * scale_x), 2)
-out_path = "screenshots/detected_overlay.png"
+out_path = "/Users/admin/opencode-imagestudio/screenshots/detected_overlay.png"
 cv2.imwrite(out_path, img_out)
 print(f"\nSaved: {out_path}")
