@@ -7,9 +7,15 @@ import json
 import cv2, numpy as np
 import math
 from collections import Counter, defaultdict
+import pyautogui
 from scipy.signal import find_peaks
 
-img = cv2.imread("screenshots/dots.png")
+full_img = cv2.imread("screenshots/dots.png")
+scale_x = 2.0 if full_img.shape[1] >= 2500 else 1.0
+scale_y = 2.0 if full_img.shape[0] >= 1500 else 1.0
+screen_w = round(full_img.shape[1] / scale_x)
+screen_h = round(full_img.shape[0] / scale_y)
+img = cv2.resize(full_img, (screen_w, screen_h), interpolation=cv2.INTER_AREA)
 H, W = img.shape[:2]
 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
@@ -50,6 +56,37 @@ rect_left = int(min(c[0] for c in centers))
 rect_right = int(max(c[0] for c in centers))
 rect_top = int(min(c[1] for c in centers))
 rect_bot = int(max(c[1] for c in centers))
+if rect_right - rect_left < 100 or rect_bot - rect_top < 100:
+    full_hsv = cv2.cvtColor(full_img, cv2.COLOR_BGR2HSV)
+    full_blue = cv2.inRange(full_hsv, np.array((100, 120, 100)), np.array((130, 255, 255)))
+    full_h = np.zeros_like(full_blue)
+    for y in range(full_blue.shape[0]):
+        row = full_blue[y] > 0
+        padded = np.concatenate(([False], row, [False]))
+        diffs = np.diff(padded.astype(int))
+        starts = np.where(diffs == 1)[0]; ends = np.where(diffs == -1)[0]
+        for start, end in zip(starts, ends):
+            if end - start > 200 * scale_x:
+                full_h[y, start:end] = 255
+    full_v = np.zeros_like(full_blue)
+    for x in range(full_blue.shape[1]):
+        col = full_blue[:, x] > 0
+        padded = np.concatenate(([False], col, [False]))
+        diffs = np.diff(padded.astype(int))
+        starts = np.where(diffs == 1)[0]; ends = np.where(diffs == -1)[0]
+        for start, end in zip(starts, ends):
+            if end - start > 100 * scale_y:
+                full_v[start:end, x] = 255
+    full_ys, full_xs = np.where(cv2.bitwise_and(full_h, full_v) > 0)
+    full_clusters = defaultdict(list)
+    for y, x in zip(full_ys, full_xs):
+        full_clusters[(y // round(20 * scale_y), x // round(20 * scale_x))].append((y, x))
+    full_centers = [(sum(p[1] for p in points) / len(points), sum(p[0] for p in points) / len(points))
+                    for points in full_clusters.values()]
+    rect_left = round(min(c[0] for c in full_centers) / scale_x)
+    rect_right = round(max(c[0] for c in full_centers) / scale_x)
+    rect_top = round(min(c[1] for c in full_centers) / scale_y)
+    rect_bot = round(max(c[1] for c in full_centers) / scale_y)
 print(f"Rectangle: x=[{rect_left},{rect_right}]  y=[{rect_top},{rect_bot}]  ({rect_right-rect_left}x{rect_bot-rect_top})")
 
 # Get dark pixels inside the rectangle.
@@ -104,66 +141,38 @@ for cx, cy, area, rr, center_v in raw_blobs:
 blobs = [(b[0], b[1], b[2]) for b in dedup]
 print(f"Hough blobs inside rectangle (strict): {len(blobs)}")
 
-# Infer the ten row bands without assuming even vertical spacing.
+# Infer columns and rows from independent darkness profiles. The profiles
+# retain uneven gaps while avoiding false Hough detections as structure.
 ROW_COUNT = 10
 COL_COUNT = 24
-anchor_y = np.sort(np.array([b[1] for b in blobs], dtype=float))
-n = len(anchor_y)
-dp = np.full((ROW_COUNT + 1, n + 1), np.inf)
-prev = np.full((ROW_COUNT + 1, n + 1), -1, dtype=int)
-dp[0, 0] = 0
-for k in range(1, ROW_COUNT + 1):
-    for end in range(k, n + 1):
-        for start in range(k - 1, end):
-            group = anchor_y[start:end]
-            center = np.median(group)
-            span = group[-1] - group[0]
-            cost = np.sum((group - center) ** 2) + 1000 * max(0, span - 16) ** 2
-            value = dp[k - 1, start] + cost
-            if value < dp[k, end]:
-                dp[k, end] = value
-                prev[k, end] = start
-
-row_groups = []
-end = n
-for k in range(ROW_COUNT, 0, -1):
-    start = prev[k, end]
-    row_groups.append(anchor_y[start:end])
-    end = start
-row_groups.reverse()
-row_y = [int(round(np.median(group))) for group in row_groups]
-print(f"\nRows: {row_y}")
-print(f"Row gaps: {[row_y[i + 1] - row_y[i] for i in range(len(row_y) - 1)]}")
-
-# Accumulate darkness around each anchor row. Local peaks recover the 24
-# columns even when their gaps vary between subgrids.
 darkness = np.clip(225 - hsv[:, :, 2].astype(float), 0, 225)
-x_profile = np.zeros(W, dtype=float)
-for cy in row_y:
-    y0, y1 = max(0, cy - 8), min(H, cy + 9)
-    x_profile += darkness[y0:y1, :].sum(axis=0)
-x_profile[:rect_left] = 0
-x_profile[rect_right:] = 0
-baseline = cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), 12).ravel()
-x_profile = np.maximum(x_profile - baseline, 0)
-
-anchor_min_x = min(b[0] for b in blobs)
-anchor_max_x = max(b[0] for b in blobs)
-peak_min_x = max(rect_left, anchor_min_x - 8)
-peak_max_x = min(rect_right, anchor_max_x + 8)
-peaks, properties = find_peaks(
-    x_profile[peak_min_x:peak_max_x + 1],
-    distance=12,
-    prominence=30,
-    height=50,
-)
-column_x = [int(p + peak_min_x) for p in peaks]
+x_profile = darkness[rect_top:rect_bot, rect_left:rect_right].sum(axis=0)
+x_profile = np.maximum(x_profile - cv2.GaussianBlur(x_profile.reshape(1, -1), (0, 0), 10).ravel(), 0)
+peaks, _ = find_peaks(x_profile, distance=12, prominence=80, height=80)
+column_x = [int(p + rect_left) for p in peaks]
+if len(column_x) > COL_COUNT:
+    anchor_max_x = max(b[0] for b in blobs)
+    column_x = [x for x in column_x if x <= anchor_max_x + 12]
 if len(column_x) != COL_COUNT:
-    print(f"WARNING: expected {COL_COUNT} columns, found {len(column_x)} profile peaks")
-    ranked = sorted(column_x, key=lambda x: x_profile[x], reverse=True)
-    column_x = sorted(ranked[:COL_COUNT])
+    raise RuntimeError(f"Expected {COL_COUNT} column peaks, found {len(column_x)}")
 print(f"Columns: {column_x}")
 print(f"Column gaps: {[column_x[i + 1] - column_x[i] for i in range(len(column_x) - 1)]}")
+
+y_profile = np.zeros(rect_bot - rect_top, dtype=float)
+for cx in column_x:
+    y_profile += darkness[rect_top:rect_bot, max(0, cx - 5):min(W, cx + 6)].sum(axis=1)
+y_profile = np.maximum(y_profile - cv2.GaussianBlur(y_profile.reshape(-1, 1), (0, 0), 10).ravel(), 0)
+y_peaks, _ = find_peaks(y_profile, distance=15, prominence=80, height=80)
+row_y = [int(p + rect_top) for p in y_peaks]
+while len(row_y) < ROW_COUNT:
+    gaps = [(row_y[i + 1] - row_y[i], i) for i in range(len(row_y) - 1)]
+    _, index = max(gaps)
+    row_y.insert(index + 1, round((row_y[index] + row_y[index + 1]) / 2))
+if len(row_y) > ROW_COUNT:
+    row_y = sorted(row_y, key=lambda y: y_profile[y - rect_top], reverse=True)[:ROW_COUNT]
+    row_y.sort()
+print(f"\nRows: {row_y}")
+print(f"Row gaps: {[row_y[i + 1] - row_y[i] for i in range(len(row_y) - 1)]}")
 
 # Fit a small horizontal offset independently for each row. This handles the
 # slight local misalignment without forcing every row onto one x-lattice.
@@ -216,16 +225,19 @@ with open("predicted_positions.json", "w") as f:
         "positions": [[int(x), int(y)] for x, y in predicted],
         "rows": row_y,
         "columns": column_x,
+        "image_size": [int(full_img.shape[1]), int(full_img.shape[0])],
+        "scale": [scale_x, scale_y],
     }, f, indent=2)
 print("Saved: predicted_positions.json")
 
 # Overlay only centers on the plain blot screenshot.
-img_out = img.copy()
+img_out = full_img.copy()
 for x, y in predicted:
-    cv2.circle(img_out, (x, y), 5, (0, 255, 0), 2)
+    cv2.circle(img_out, (round(x * scale_x), round(y * scale_y)), round(5 * scale_x), (0, 255, 0), 2)
 for x, y, area in blobs:
-    cv2.circle(img_out, (x, y), 9, (0, 0, 255), 2)
-    cv2.drawMarker(img_out, (x, y), (0, 255, 255), cv2.MARKER_CROSS, 12, 2)
+    center = (round(x * scale_x), round(y * scale_y))
+    cv2.circle(img_out, center, round(9 * scale_x), (0, 0, 255), 2)
+    cv2.drawMarker(img_out, center, (0, 255, 255), cv2.MARKER_CROSS, round(12 * scale_x), 2)
 out_path = "/Users/admin/opencode-imagestudio/screenshots/detected_overlay.png"
 cv2.imwrite(out_path, img_out)
 print(f"\nSaved: {out_path}")
