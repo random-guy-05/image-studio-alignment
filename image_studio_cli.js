@@ -21,7 +21,15 @@ if (!existsSync(venvPython)) {
   }
 }
 
-const runner = existsSync(venvPython) ? venvPython : systemPython;
+let runner = existsSync(venvPython) ? venvPython : systemPython;
+
+// Verify pyautogui works in the chosen runner; fall back to system Python on version mismatches.
+const test = spawnSync(runner, ["-c", "import pyautogui"], { stdio: "pipe" });
+if (test.status !== 0 && runner !== systemPython) {
+  console.log("venv Python has a pyautogui issue; falling back to system Python.");
+  runner = systemPython;
+}
+
 const args = runner === systemPython && process.platform === "win32"
   ? [...launcherArgs, path.join(packageRoot, "image_studio.py"), ...process.argv.slice(2)]
   : [path.join(packageRoot, "image_studio.py"), ...process.argv.slice(2)];
