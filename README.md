@@ -18,6 +18,8 @@ If macOS asks for permissions, allow your terminal or Python access under:
 
 `System Settings -> Privacy & Security -> Accessibility`
 
+Allow keyboard monitoring as well if macOS requests it; this enables global ESC cancellation while ImageStudio is focused.
+
 The same Python workflow supports Intel Macs and Apple Silicon Macs; use the native Python installed on that machine.
 
 ### Windows

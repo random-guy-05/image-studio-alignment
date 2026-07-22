@@ -20,6 +20,24 @@ _termios_state = None
 
 def _listen():
     global _termios_state
+    try:
+        from pynput import keyboard
+
+        def on_press(key):
+            if key == keyboard.Key.esc:
+                _abort.set()
+                return False
+
+        listener = keyboard.Listener(on_press=on_press)
+        listener.start()
+        while not _stop.is_set() and listener.is_alive():
+            time.sleep(0.03)
+        listener.stop()
+        return
+    except Exception:
+        # Fall back to terminal input when global keyboard hooks are blocked.
+        pass
+
     if platform.system() == "Windows":
         import msvcrt
         while not _stop.is_set():
