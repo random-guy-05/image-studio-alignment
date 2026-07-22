@@ -26,13 +26,18 @@ This project automates aligning blue-outline circles to black/light-grey data do
    - On macOS: `Cmd+Shift+4`, then drag to select the ImageStudio window
    - **Save to `~/opencode-imagestudio/screenshots/dots.png`**
 3. **Show the blue-outline circles again** (toggle back on)
-4. From a terminal: `cd ~/opencode-imagestudio && python3 setup.py`
+4. From a terminal: `cd ~/opencode-imagestudio && python3 grid_detect.py`
 5. The script will:
-   - Detect all data dots in the clean screenshot
-   - Capture the current view and detect all blue circles
-   - Pair each blue with its nearest data dot (Hungarian, 1:1)
-   - Identify any "extras" (more blues than data dots)
-   - Save everything to `targets.json`
+   - Detect high-confidence Hough anchors
+   - Learn the uneven row structure and local column structure
+   - Save all 240 definitive modeled positions to `predicted_positions.json`
+6. With the blue outlines visible, run: `python3 prepare_targets.py`
+7. The target-preparation script will:
+   - Capture the current ImageStudio window
+   - Detect the visible blue outlines
+   - Pair each blue with a unique position from the complete 240-position model
+   - Save the pairs to `targets.json`
+   - Save a review image to `screenshots/blue_target_overlay.png`
 
 ### Step 2: Align
 1. From the same terminal: `python3 align.py`

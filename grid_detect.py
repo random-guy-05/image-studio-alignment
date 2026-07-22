@@ -3,6 +3,7 @@ Cytokine arrays are printed in a regular grid. If we find the grid spacing,
 we can predict every dot position and just check if a dot exists there.
 This eliminates false positives (gaps) and finds faint dots (we look at
 specific positions, not everywhere)."""
+import json
 import cv2, numpy as np
 import math
 from collections import Counter, defaultdict
@@ -189,6 +190,15 @@ for cy in row_y:
     print(f"  row y={cy}: anchors={len(row_anchors)} x_offset={offset} y_slope={y_slope * 1000:.1f}/1000px")
 
 print(f"Predicted positions: {len(predicted)} ({COL_COUNT} columns x {ROW_COUNT} rows)")
+
+with open("predicted_positions.json", "w") as f:
+    json.dump({
+        "rectangle": [rect_left, rect_top, rect_right, rect_bot],
+        "positions": [[int(x), int(y)] for x, y in predicted],
+        "rows": row_y,
+        "columns": column_x,
+    }, f, indent=2)
+print("Saved: predicted_positions.json")
 
 # Overlay: green = predicted full grid, red/yellow = Hough anchor detections.
 img_out = img.copy()
