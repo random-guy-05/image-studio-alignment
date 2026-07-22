@@ -363,8 +363,10 @@ while len(row_y) < ROW_COUNT:
     if all(abs(best_y - existing) >= min_row_gap for existing in row_y):
         row_y.append(best_y)
     else:
-        # Already too close to an existing row; try the next best gap in the next iteration.
-        pass
+        # Fall back to midpoint of largest gap to avoid infinite loop.
+        gaps = [(row_y[i + 1] - row_y[i], i) for i in range(len(row_y) - 1)]
+        _, idx = max(gaps)
+        row_y.append(round((row_y[idx] + row_y[idx + 1]) / 2))
 row_y.sort()
 print(f"Pruned rows: {row_y}")
 
