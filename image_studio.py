@@ -63,15 +63,10 @@ def main():
         except (EOFError, KeyboardInterrupt):
             print("\nAborted.")
             return
-        try:
-            tol = input("Alignment tolerance in px [5]: ").strip()
-            tolerance_px = int(tol) if tol else 5
-        except (EOFError, KeyboardInterrupt, ValueError):
-            tolerance_px = 5
         run("prepare_targets.py")
-        run("align.py", "--tolerance", str(tolerance_px))
+        run("align.py")
         try:
-            run("verify_alignment.py", "--tolerance", str(tolerance_px))
+            run("verify_alignment.py", "--tolerance", "5")
         except subprocess.CalledProcessError:
             pass  # non-zero = misalignments found; that's a report, not a crash
     elif args.command == "detect":
@@ -79,20 +74,10 @@ def main():
     elif args.command == "prepare":
         run("prepare_targets.py", *( ["--resume"] if args.resume else [] ))
     elif args.command == "align":
-        try:
-            tol = input("Alignment tolerance in px [5]: ").strip()
-            tolerance_px = int(tol) if tol else 5
-        except (EOFError, KeyboardInterrupt, ValueError):
-            tolerance_px = 5
-        run("align.py", "--targets", args.targets, "--tolerance", str(tolerance_px))
+        run("align.py", "--targets", args.targets)
     elif args.command in {"verify", "status"}:
         try:
-            tol = input("Alignment tolerance in px [5]: ").strip()
-            tolerance_px = int(tol) if tol else 5
-        except (EOFError, KeyboardInterrupt, ValueError):
-            tolerance_px = 5
-        try:
-            run("verify_alignment.py", "--tolerance", str(tolerance_px))
+            run("verify_alignment.py", "--tolerance", str(args.tolerance if args.command == "verify" else 5))
         except subprocess.CalledProcessError:
             pass
     elif args.command == "complete":
