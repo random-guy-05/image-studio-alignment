@@ -58,4 +58,11 @@ def activate_window(title=None):
 
 
 def capture_fullscreen(path):
-    pyautogui.screenshot().save(path)
+    if platform.system() == "Darwin":
+        subprocess.run(["screencapture", "-x", path], check=True)
+    else:
+        try:
+            pyautogui.screenshot().save(path)
+        except Exception:
+            import PIL.ImageGrab
+            PIL.ImageGrab.grab().save(path)

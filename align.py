@@ -35,10 +35,12 @@ def verify_alignment(spot, tolerance=10):
     """Take a screenshot and check if a blue circle is near the target spot.
     Returns True if aligned, False if not."""
     try:
-        import cv2, numpy as np
-        shot = pyautogui.screenshot()
-        shot_np = np.array(shot)
-        hsv = cv2.cvtColor(shot_np, cv2.COLOR_RGB2HSV)
+        import cv2, numpy as np, tempfile
+        from platform_utils import capture_fullscreen
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            capture_fullscreen(tmp.name)
+            shot_np = cv2.imread(tmp.name)
+        hsv = cv2.cvtColor(shot_np, cv2.COLOR_BGR2HSV)
         blue_mask = cv2.inRange(hsv, np.array((100, 120, 100)), np.array((130, 255, 255)))
         # Check a 30x30 area around the spot for blue pixels
         sx, sy = int(spot[0]), int(spot[1])
