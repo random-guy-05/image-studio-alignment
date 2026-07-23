@@ -23,7 +23,7 @@ SETTLE            = 0.70   # pause after each major action
 PRE_CLICK         = 0.20   # pause before first click
 POST_CLICK        = 0.20   # pause after final click
 CORNER_PAD        = 10     # don't click within 10pt of the rectangle border
-ALIGNED_TOLERANCE = 10     # already centered; do not touch it again
+ALIGNED_TOLERANCE = 5     # already centered; do not touch it again
 
 # Window + rectangle bounds (set in main from targets.json)
 WINDOW_X = WINDOW_Y = WINDOW_W = WINDOW_H = None

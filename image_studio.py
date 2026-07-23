@@ -30,9 +30,9 @@ def main():
     align = subparsers.add_parser("align", help="Drag current blue centers to their targets")
     align.add_argument("--targets", default="targets.json", help="Target JSON file to use")
     verify = subparsers.add_parser("verify", help="Check every visible blue center")
-    verify.add_argument("--tolerance", type=float, default=10)
+    verify.add_argument("--tolerance", type=float, default=5)
     complete = subparsers.add_parser("complete", help="Repair only verifier-reported misalignments")
-    complete.add_argument("--tolerance", type=float, default=10)
+    complete.add_argument("--tolerance", type=float, default=5)
     subparsers.add_parser("status", help="Run verification and return its status")
 
     args = parser.parse_args()
@@ -77,7 +77,7 @@ def main():
         run("align.py", "--targets", args.targets)
     elif args.command in {"verify", "status"}:
         try:
-            run("verify_alignment.py", "--tolerance", str(args.tolerance if args.command == "verify" else 10))
+            run("verify_alignment.py", "--tolerance", str(args.tolerance if args.command == "verify" else 5))
         except subprocess.CalledProcessError:
             pass
     elif args.command == "complete":

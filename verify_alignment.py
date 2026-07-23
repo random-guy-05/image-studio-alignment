@@ -90,7 +90,7 @@ def verify(tolerance=10):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tolerance", type=float, default=10)
+    parser.add_argument("--tolerance", type=float, default=5)
     args = parser.parse_args()
     result = verify(args.tolerance)
     raise SystemExit(0 if result["misaligned_count"] == 0 and result["missing_count"] == 0 else 1)

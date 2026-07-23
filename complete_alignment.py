@@ -14,7 +14,7 @@ ALIGN_SCRIPT = str(Path(__file__).resolve().parent / "align.py")
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tolerance", type=float, default=10)
+    parser.add_argument("--tolerance", type=float, default=5)
     args = parser.parse_args()
     report = verify(args.tolerance)
     repairs = report["repairs"]
