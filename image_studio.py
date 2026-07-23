@@ -79,15 +79,30 @@ def main():
     elif args.command == "prepare":
         run("prepare_targets.py", *( ["--resume"] if args.resume else [] ))
     elif args.command == "align":
-        run("align.py", "--targets", args.targets)
+        try:
+            tol = input("Alignment tolerance in px [5]: ").strip()
+            tolerance_px = int(tol) if tol else 5
+        except (EOFError, KeyboardInterrupt, ValueError):
+            tolerance_px = 5
+        run("align.py", "--targets", args.targets, "--tolerance", str(tolerance_px))
     elif args.command in {"verify", "status"}:
         try:
-            run("verify_alignment.py", "--tolerance", str(args.tolerance if args.command == "verify" else 5))
+            tol = input("Alignment tolerance in px [5]: ").strip()
+            tolerance_px = int(tol) if tol else 5
+        except (EOFError, KeyboardInterrupt, ValueError):
+            tolerance_px = 5
+        try:
+            run("verify_alignment.py", "--tolerance", str(tolerance_px))
         except subprocess.CalledProcessError:
             pass
     elif args.command == "complete":
         try:
-            run("complete_alignment.py", "--tolerance", str(args.tolerance))
+            tol = input("Alignment tolerance in px [5]: ").strip()
+            tolerance_px = int(tol) if tol else 5
+        except (EOFError, KeyboardInterrupt, ValueError):
+            tolerance_px = 5
+        try:
+            run("complete_alignment.py", "--tolerance", str(tolerance_px))
         except subprocess.CalledProcessError:
             pass
 
