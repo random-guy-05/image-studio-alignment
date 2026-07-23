@@ -65,17 +65,16 @@ def select_and_drag(dot, spot, retry=False):
                 print(f"    SKIP: {name} ({x},{y}) too close to rectangle border", flush=True)
                 return False
 
-    check()
     pyautogui.moveTo(fx, fy)
-    safe_sleep(PRE_CLICK)
+    time.sleep(PRE_CLICK)
     pyautogui.click()
-    safe_sleep(CLICK_INTERVAL)
+    time.sleep(CLICK_INTERVAL)
     pyautogui.click()
-    safe_sleep(SETTLE)
+    time.sleep(SETTLE)
     pyautogui.dragTo(tx, ty, duration=duration, button='left', mouseDownUp=True)
-    safe_sleep(SETTLE)
+    time.sleep(SETTLE)
     pyautogui.click()
-    safe_sleep(POST_CLICK)
+    time.sleep(POST_CLICK)
 
     # VERIFICATION: check if a blue circle is now at the target
     if not retry:
