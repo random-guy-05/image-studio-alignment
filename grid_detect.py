@@ -202,8 +202,11 @@ column_x = [int(p + rect_left) for p in peaks]
 if len(column_x) > COL_COUNT:
     anchor_max_x = max(b[0] for b in blobs)
     column_x = [x for x in column_x if x <= anchor_max_x + 12]
-if len(column_x) != COL_COUNT:
-    raise RuntimeError(f"Expected {COL_COUNT} column peaks, found {len(column_x)}")
+if len(column_x) > COL_COUNT:
+    column_x = sorted(column_x, key=lambda x: x_profile[x - rect_left], reverse=True)[:COL_COUNT]
+    column_x.sort()
+if len(column_x) < COL_COUNT:
+    raise RuntimeError(f"Expected {COL_COUNT} column peaks, found only {len(column_x)}")
 print(f"Columns: {column_x}")
 print(f"Column gaps: {[column_x[i + 1] - column_x[i] for i in range(len(column_x) - 1)]}")
 
