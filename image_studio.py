@@ -4,7 +4,6 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
-from escape_guard import AbortRequested, check, sleep as safe_sleep, start as start_escape, stop as stop_escape
 
 ROOT = Path(__file__).resolve().parent
 WORKDIR = Path.cwd()
@@ -12,21 +11,7 @@ WORKDIR = Path.cwd()
 
 def run(script, *args):
     command = [sys.executable, str(ROOT / script), *args]
-    process = subprocess.Popen(command, cwd=WORKDIR)
-    try:
-        while process.poll() is None:
-            check()
-            safe_sleep(0.05)
-    except AbortRequested:
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
-        raise
-    if process.returncode:
-        raise subprocess.CalledProcessError(process.returncode, command)
+    subprocess.run(command, cwd=WORKDIR, check=True)
 
 
 def main():
@@ -67,37 +52,30 @@ def main():
         return
     if not (WORKDIR / "screenshots" / "dots.png").exists():
         parser.error(f"No screenshots/dots.png in {WORKDIR}. Run `image-studio init` first.")
-    start_escape()
-    try:
-        if args.command == "run":
-            run("grid_detect.py")
-            print()
-            try:
-                resp = input("Proceed with alignment? (y/n) [y]: ").strip().lower()
-                if resp and resp != "y":
-                    print("Aborted. Overlay saved — review screenshots/detected_overlay.png")
-                    return
-            except (EOFError, KeyboardInterrupt):
-                print("\nAborted.")
+    if args.command == "run":
+        run("grid_detect.py")
+        print()
+        try:
+            resp = input("Proceed with alignment? (y/n) [y]: ").strip().lower()
+            if resp and resp != "y":
+                print("Aborted. Overlay saved — review screenshots/detected_overlay.png")
                 return
-            run("prepare_targets.py")
-            run("align.py")
-            run("verify_alignment.py")
-        elif args.command == "detect":
-            run("grid_detect.py")
-        elif args.command == "prepare":
-            run("prepare_targets.py", *( ["--resume"] if args.resume else [] ))
-        elif args.command == "align":
-            run("align.py", "--targets", args.targets)
-        elif args.command in {"verify", "status"}:
-            run("verify_alignment.py", "--tolerance", str(args.tolerance if args.command == "verify" else 10))
-        elif args.command == "complete":
-            run("complete_alignment.py", "--tolerance", str(args.tolerance))
-    except AbortRequested:
-        print("\nAborted by ESC.", file=sys.stderr)
-        raise SystemExit(130)
-    finally:
-        stop_escape()
+        except (EOFError, KeyboardInterrupt):
+            print("\nAborted.")
+            return
+        run("prepare_targets.py")
+        run("align.py")
+        run("verify_alignment.py")
+    elif args.command == "detect":
+        run("grid_detect.py")
+    elif args.command == "prepare":
+        run("prepare_targets.py", *( ["--resume"] if args.resume else [] ))
+    elif args.command == "align":
+        run("align.py", "--targets", args.targets)
+    elif args.command in {"verify", "status"}:
+        run("verify_alignment.py", "--tolerance", str(args.tolerance if args.command == "verify" else 10))
+    elif args.command == "complete":
+        run("complete_alignment.py", "--tolerance", str(args.tolerance))
 
 
 if __name__ == "__main__":
