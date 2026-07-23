@@ -60,8 +60,8 @@ def main():
     if image is None:
         raise RuntimeError(f"Could not read {BLUE_CAPTURE}")
 
-    scale_x = prediction_scale_x
-    scale_y = prediction_scale_y
+    scale_x = image.shape[1] / pyautogui.size()[0]
+    scale_y = image.shape[0] / pyautogui.size()[1]
     scale = (scale_x + scale_y) / 2
     local_blues = detect_blue_centers(image, scale)
     blues = [
@@ -70,7 +70,7 @@ def main():
         if pixel_rect[0] < x < pixel_rect[2] and pixel_rect[1] < y < pixel_rect[3]
     ]
     if not blues:
-        raise RuntimeError("No blue outlines detected inside the data rectangle")
+        raise RuntimeError(f"No blue outlines detected inside the data rectangle ({len(local_blues)} found total, rect={pixel_rect})")
     resume = "--resume" in sys.argv
     if not resume and not EXPECTED_BLUE_COUNT - BLUE_COUNT_TOLERANCE <= len(blues) <= EXPECTED_BLUE_COUNT + BLUE_COUNT_TOLERANCE:
         raise RuntimeError(
