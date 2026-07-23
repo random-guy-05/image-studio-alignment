@@ -309,7 +309,7 @@ for bx, by, _ in blobs:
     patch = darkness[max(0, by - refine_radius):min(H, by + refine_radius + 1),
                      max(0, bx - refine_radius):min(W, bx + refine_radius + 1)]
     anchor_strengths.append(float(patch.max()))
-refine_cutoff = float(np.percentile(anchor_strengths, 10)) if anchor_strengths else float("inf")
+refine_cutoff = float(np.percentile(anchor_strengths, 30)) if anchor_strengths else float("inf")
 refined_positions = 0
 for position_index, (px, py) in enumerate(predicted):
     if position_index in used_positions:
