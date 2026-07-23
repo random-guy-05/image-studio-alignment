@@ -64,6 +64,17 @@ def verify(tolerance=10):
             repairs.append(match)
 
     missing = [list(targets[i]) for i in range(len(targets)) if i not in matched_targets]
+
+    # Detect overlapping blue outlines (two blues assigned to nearby targets).
+    overlaps = []
+    for i in range(len(matches)):
+        for j in range(i + 1, len(matches)):
+            d = math.hypot(matches[i]["blue"][0] - matches[j]["blue"][0],
+                           matches[i]["blue"][1] - matches[j]["blue"][1])
+            if d < tolerance * 2:
+                overlaps.append({"blue_a": matches[i]["blue"], "blue_b": matches[j]["blue"],
+                                 "distance": round(d, 2)})
+
     report = {
         "tolerance": tolerance,
         "target_count": len(targets),
@@ -74,6 +85,7 @@ def verify(tolerance=10):
         "missing_count": len(missing),
         "repairs": repairs,
         "missing_targets": missing,
+        "overlaps": overlaps,
         "bounds": [wx, wy, ww, wh],
         "matches": matches,
     }
@@ -84,6 +96,8 @@ def verify(tolerance=10):
     print(f"Aligned: {report['aligned_count']}")
     print(f"Misaligned: {report['misaligned_count']}")
     print(f"Missing: {report['missing_count']}")
+    if overlaps:
+        print(f"Overlaps: {len(overlaps)}")
     print(f"Saved: {REPORT_PATH}")
     return report
 
