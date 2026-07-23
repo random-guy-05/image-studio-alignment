@@ -1,204 +1,110 @@
 # ImageStudio Alignment
 
-Cross-platform automation for moving ImageStudio’s blue outline circles onto a learned 10x24 blot grid.
+Automatically moves ImageStudio's blue outline circles onto their correct data dots.
 
-The project treats the modeled 240 positions as definitive targets. It uses conservative Hough anchors, uneven row/column modeling, row tilt correction, black-blot center correction, verifier-driven repair, and resumable alignment.
+**One command does everything:**
 
-## Install
+```bash
+image-studio run
+```
 
-### Recommended: no clone required
+---
 
-Install the global command directly from GitHub:
+## What It Does
+
+| Step | Description |
+|------|-------------|
+| 1. Detect | Learns all 240 blot positions from a clean screenshot |
+| 2. Prepare | Captures the screen, pairs each blue outline to its target |
+| 3. Align | Drags every blue circle to its correct data dot |
+| 4. Verify | Checks every position and reports misalignments |
+| 5. Complete | Fixes any remaining misalignments (asks for tolerance) |
+
+---
+
+## Install (30 seconds)
+
+**Prerequisites**: Node.js + Python 3
 
 ```bash
 npm install -g github:random-guy-05/image-studio-alignment
-```
-
-Then create a workspace anywhere:
-
-```bash
-mkdir image-studio-workspace
-cd image-studio-workspace
 image-studio init
 ```
 
-The npm installer creates the private Python environment automatically. No repository clone is required.
+This creates a private Python environment. No clone, no manual setup.
 
-After installation, the complete happy path is:
+**macOS**: grant Accessibility permission when prompted (System Settings → Privacy & Security → Accessibility).
 
-```bash
-image-studio init
-image-studio run
-```
+**Windows**: same commands from PowerShell. Python 3.11–3.13 required.
 
-### macOS, Intel or Apple Silicon
+---
 
-The global npm command works on both Intel and Apple Silicon Macs. If you already cloned the repository instead, `./install.sh` remains available.
+## One-Time Setup
 
-If macOS asks for permissions, allow your terminal or Python access under:
+1. Open ImageStudio — full grid must be visible
+2. **Hide** blue outline circles
+3. Take a **full-screen screenshot**
+4. Save to `screenshots/dots.png`
+5. **Show** blue outlines again
 
-`System Settings -> Privacy & Security -> Accessibility`
+---
 
-Allow keyboard monitoring as well if macOS requests it; this enables global ESC cancellation while ImageStudio is focused.
-
-The same Python workflow supports Intel Macs and Apple Silicon Macs; use the native Python installed on that machine.
-
-### Windows
-
-Install Node.js and Python 3, then run from PowerShell anywhere:
-
-```powershell
-npm install -g github:random-guy-05/image-studio-alignment
-mkdir image-studio-workspace
-cd image-studio-workspace
-image-studio init
-```
-
-If you already cloned the repository, `install.ps1` remains available. Then run the CLI with:
-
-```powershell
-python .\image_studio.py --help
-python .\image_studio.py detect
-```
-
-If the application title is not exactly `ImageStudio`, set it before running:
-
-```powershell
-$env:IMAGESTUDIO_WINDOW_TITLE = "Your ImageStudio Window Title"
-```
-
-## Daily Workflow
-
-### One command
-
-Once `screenshots/dots.png` is clean and the blue outlines are visible:
+## Run Everything
 
 ```bash
 image-studio run
 ```
 
-This runs detect, prepare, align, and verify in one sequence.
+You'll be asked:
+- **Row/column count** — default is 10×24, press Enter to accept
+- **Proceed?** — type `y` after reviewing the overlay at `screenshots/detected_overlay.png`
+- **Tolerance** — how strict the final check should be in pixels (default 5)
 
-On Windows, use the same command from PowerShell:
+---
 
-```powershell
-image-studio run
-```
+## Individual Commands
 
-Press `Esc` at any time to abort. The current drag is released safely and the workflow can be resumed with:
+| Command | Purpose |
+|---------|---------|
+| `image-studio detect` | Detect blot positions from the clean screenshot |
+| `image-studio prepare` | Pair visible blue outlines to targets |
+| `image-studio prepare --resume` | Same but works after a partial run |
+| `image-studio align` | Drag blues to targets |
+| `image-studio verify` | Read-only check — writes `verification.json` |
+| `image-studio complete` | Repair remaining misalignments |
+| `image-studio clean` | Delete generated files (keeps `dots.png`) |
+
+---
+
+## Resume After Interruption
 
 ```bash
 image-studio prepare --resume
 image-studio align
 ```
 
-### 1. Capture the clean blot image
+Already-aligned outlines are skipped.
 
-1. Open the ImageStudio file and show the full grid.
-2. Hide the blue outline circles.
-3. Capture the entire screen, not just the window.
-4. Save it as `screenshots/dots.png`.
-5. Show the blue outlines again.
+---
 
-The clean screenshot must contain the blot grid without blue outline contamination.
+## Generated Files
 
-### 2. Learn targets
+| File | Purpose |
+|------|---------|
+| `screenshots/detected_overlay.png` | Preview: green=predicted, red=discovered |
+| `predicted_positions.json` | All 240 target coordinates |
+| `targets.json` | Blue-to-target pairs |
+| `verification.json` | Alignment report |
 
-```bash
-./image_studio.py detect
-```
-
-This writes `predicted_positions.json` with all 240 definitive blot centers and regenerates the plain center overlay at `screenshots/detected_overlay.png`.
-
-### 3. Prepare center pairs
-
-```bash
-./image_studio.py prepare
-```
-
-This captures the current full screen, detects blue outline centers, and writes `targets.json`.
-
-For a partially completed run:
-
-```bash
-./image_studio.py prepare --resume
-```
-
-Resume mode allows fewer visible outlines and is safe for continuation after a timeout or interruption.
-
-### 4. Align
-
-```bash
-./image_studio.py align
-```
-
-The aligner verifies window bounds, skips centers already within 10 pixels of their targets, and drags only remaining pairs.
-
-### 5. Verify
-
-```bash
-./image_studio.py verify
-```
-
-The verifier compares current blue centers against all 240 definitive targets and writes `verification.json`.
-
-### 6. Repair anything missing
-
-```bash
-./image_studio.py complete
-```
-
-This uses `verification.json` logic to create a temporary repair set, aligns only misaligned visible centers, and verifies again.
-
-## Direct Commands
-
-```bash
-./image_studio.py --help
-./image_studio.py detect
-./image_studio.py prepare
-./image_studio.py prepare --resume
-./image_studio.py align
-./image_studio.py verify --tolerance 10
-./image_studio.py complete --tolerance 10
-```
-
-Equivalent npm shortcuts:
-
-```bash
-npm run detect
-npm run targets
-npm run align
-npm run verify
-npm run complete
-```
-
-Those `npm run` shortcuts are for a cloned developer checkout; global users should use the `image-studio` command directly.
-
-On Windows, replace `./image_studio.py` with `python .\image_studio.py`.
-
-## Important Files
-
-- `image_studio.py`: unified CLI
-- `install.sh`: one-command environment setup
-- `install.ps1`: Windows PowerShell environment setup
-- `platform_utils.py`: Intel Mac, Apple Silicon Mac, and Windows window/capture helpers
-- `grid_detect.py`: clean blot detection and 240-position modeling
-- `prepare_targets.py`: full-screen blue-center detection and pairing
-- `align.py`: guarded center-to-center dragging
-- `verify_alignment.py`: read-only alignment verifier
-- `complete_alignment.py`: verifier-driven repair pass
-- `predicted_positions.json`: definitive modeled centers
-- `targets.json`: current blue-to-target pairs
-- `verification.json`: latest verification report
-- `archive/`: historical experiments and diagnostics
+---
 
 ## Recovery
 
-If a run needs to stop, press `Ctrl-C` in the terminal. Reopen/reset the ImageStudio file if necessary, show the blue outlines, and use:
+Press **Ctrl+C** anytime. Reopen/reset the ImageStudio file, show blue outlines, then:
 
 ```bash
-./image_studio.py prepare --resume
-./image_studio.py align
+image-studio prepare --resume
+image-studio align
 ```
 
-Never run alignment against a contaminated `screenshots/dots.png`; blue outlines must be hidden during target detection.
+**Important**: never include blue outlines in `dots.png` — they must be hidden during capture.
