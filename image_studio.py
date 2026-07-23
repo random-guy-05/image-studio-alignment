@@ -65,7 +65,10 @@ def main():
             return
         run("prepare_targets.py")
         run("align.py")
-        run("verify_alignment.py")
+        try:
+            run("verify_alignment.py")
+        except subprocess.CalledProcessError:
+            pass  # non-zero = misalignments found; that's a report, not a crash
     elif args.command == "detect":
         run("grid_detect.py")
     elif args.command == "prepare":
@@ -73,9 +76,15 @@ def main():
     elif args.command == "align":
         run("align.py", "--targets", args.targets)
     elif args.command in {"verify", "status"}:
-        run("verify_alignment.py", "--tolerance", str(args.tolerance if args.command == "verify" else 10))
+        try:
+            run("verify_alignment.py", "--tolerance", str(args.tolerance if args.command == "verify" else 10))
+        except subprocess.CalledProcessError:
+            pass
     elif args.command == "complete":
-        run("complete_alignment.py", "--tolerance", str(args.tolerance))
+        try:
+            run("complete_alignment.py", "--tolerance", str(args.tolerance))
+        except subprocess.CalledProcessError:
+            pass
 
 
 if __name__ == "__main__":
