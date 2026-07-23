@@ -5,11 +5,8 @@ Drags each blue dot to its paired grey spot.
 - Esc after each drop to deselect the dot
 - Per-N screenshot checkpoint for sanity
 """
-import json, math, time, sys
-import argparse
+import json, math, subprocess, time, sys
 import pyautogui
-from platform_utils import activate_window, get_largest_window
-from escape_guard import AbortRequested, check, sleep as safe_sleep, start as start_escape, stop as stop_escape
 
 # Eliminate pyautogui's default 0.1s pause between every call
 # (would otherwise make each drag take 6+s on a 60-step drag)
@@ -78,7 +75,7 @@ def select_and_drag(dot, spot, retry=False):
 
     # VERIFICATION: check if a blue circle is now at the target
     if not retry:
-        safe_sleep(0.3)  # let the UI settle
+        time.sleep(0.3)  # let the UI settle
         if not verify_alignment(spot):
             print(f"    MISALIGNED — correcting…", flush=True)
             # Find where the blue actually landed and re-drag to the target
@@ -89,29 +86,34 @@ def select_and_drag(dot, spot, retry=False):
 
 def main():
     global WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H, RECT_X1, RECT_Y1, RECT_X2, RECT_Y2
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--targets", default="targets.json")
-    args = parser.parse_args()
-    data = json.load(open(args.targets))
-    start_escape()
-    try:
-        _run_alignment(data)
-    except AbortRequested:
-        pyautogui.mouseUp()
-        print("\nAborted by ESC. Re-run with resume preparation to continue.", flush=True)
-        raise SystemExit(130)
-    finally:
-        stop_escape()
-
-
-def _run_alignment(data):
-    global WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H, RECT_X1, RECT_Y1, RECT_X2, RECT_Y2
+    data = json.load(open("targets.json"))
     pairs = data["pairs"]
     WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H = data["bounds"]
 
-    # Verify against the largest ImageStudio window on the current platform.
+    # Verify against the LARGEST window
     try:
-        actual = get_largest_window()
+        raw = subprocess.check_output(["osascript", "-e",
+            'tell application "System Events" to tell process "ImageStudio" to get position of every window & size of every window'
+        ]).decode().strip()
+        parts = []
+        for p in raw.replace("{","").replace("}","").split(","):
+            p = p.strip()
+            if p == "missing value" or p == "":
+                parts.append(0)
+            else:
+                try: parts.append(int(p))
+                except: parts.append(0)
+        nums = parts
+        n = len(nums) // 4
+        largest = None
+        for i in range(n):
+            wx, wy = nums[i*2], nums[i*2+1]
+            ww, wh = nums[n*2 + i*2], nums[n*2 + i*2 + 1]
+            if ww == 0 or wh == 0: continue
+            area = ww * wh
+            if largest is None or area > largest[2]:
+                largest = (wx, wy, area, ww, wh)
+        actual = (largest[0], largest[1], largest[3], largest[4])
     except Exception as e:
         print(f"Could not check windows: {e}", flush=True)
         actual = tuple(WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H)
@@ -128,7 +130,9 @@ def _run_alignment(data):
         RECT_X1, RECT_Y1, RECT_X2, RECT_Y2 = data["rectangle"]
     print(f"Aligning {len(pairs)} dots…  + {len(data.get('extras', []))} extras to corner")
 
-    activate_window()
+    subprocess.run(["osascript", "-e",
+        'tell application "ImageStudio" to activate'])
+    time.sleep(0.5)
 
     for i, p in enumerate(pairs):
         dot  = p["dot"][:2]
