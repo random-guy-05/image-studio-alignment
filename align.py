@@ -72,18 +72,7 @@ def select_and_drag(dot, spot, retry=False):
     safe_sleep(CLICK_INTERVAL)
     pyautogui.click()
     safe_sleep(SETTLE)
-    drag_steps = max(2, int(math.ceil(dist / 20)))
-    pyautogui.moveTo(fx, fy)
-    pyautogui.mouseDown()
-    try:
-        for step in range(1, drag_steps + 1):
-            check()
-            progress = step / drag_steps
-            pyautogui.moveTo(fx + (tx - fx) * progress,
-                             fy + (ty - fy) * progress,
-                             duration=duration / drag_steps)
-    finally:
-        pyautogui.mouseUp()
+    pyautogui.dragTo(tx, ty, duration=duration, button='left', mouseDownUp=True)
     safe_sleep(SETTLE)
     pyautogui.click()
     safe_sleep(POST_CLICK)
