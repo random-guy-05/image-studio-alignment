@@ -6,6 +6,7 @@ Drags each blue dot to its paired grey spot.
 - Per-N screenshot checkpoint for sanity
 """
 import json, math, subprocess, time, sys
+import argparse
 import pyautogui
 
 # Eliminate pyautogui's default 0.1s pause between every call
@@ -86,7 +87,10 @@ def select_and_drag(dot, spot, retry=False):
 
 def main():
     global WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H, RECT_X1, RECT_Y1, RECT_X2, RECT_Y2
-    data = json.load(open("targets.json"))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--targets", default="targets.json")
+    args = parser.parse_args()
+    data = json.load(open(args.targets))
     pairs = data["pairs"]
     WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H = data["bounds"]
 
