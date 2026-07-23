@@ -6,6 +6,7 @@ import sys
 
 import cv2
 import numpy as np
+import pyautogui
 from scipy.optimize import linear_sum_assignment
 from platform_utils import activate_window, capture_fullscreen, get_largest_window
 
