@@ -65,10 +65,20 @@ def main():
             return
         run("prepare_targets.py")
         run("align.py")
+        print()
         try:
-            run("verify_alignment.py", "--tolerance", "5")
+            tol = input("Alignment tolerance in px [5]: ").strip()
+            tolerance_px = int(tol) if tol else 5
+        except (EOFError, KeyboardInterrupt, ValueError):
+            tolerance_px = 5
+        try:
+            run("verify_alignment.py", "--tolerance", str(tolerance_px))
         except subprocess.CalledProcessError:
-            pass  # non-zero = misalignments found; that's a report, not a crash
+            pass
+        try:
+            run("complete_alignment.py", "--tolerance", str(tolerance_px))
+        except subprocess.CalledProcessError:
+            pass
     elif args.command == "detect":
         run("grid_detect.py")
     elif args.command == "prepare":
