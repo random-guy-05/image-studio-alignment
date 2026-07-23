@@ -23,7 +23,6 @@ SETTLE            = 0.70   # pause after each major action
 PRE_CLICK         = 0.20   # pause before first click
 POST_CLICK        = 0.20   # pause after final click
 CORNER_PAD        = 10     # don't click within 10pt of the rectangle border
-ALIGNED_TOLERANCE = 5     # already centered; do not touch it again
 
 # Window + rectangle bounds (set in main from targets.json)
 WINDOW_X = WINDOW_Y = WINDOW_W = WINDOW_H = None
@@ -89,7 +88,9 @@ def main():
     global WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H, RECT_X1, RECT_Y1, RECT_X2, RECT_Y2
     parser = argparse.ArgumentParser()
     parser.add_argument("--targets", default="targets.json")
+    parser.add_argument("--tolerance", type=float, default=5)
     args = parser.parse_args()
+    aligned_tolerance = args.tolerance
     data = json.load(open(args.targets))
     pairs = data["pairs"]
     WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H = data["bounds"]
@@ -143,7 +144,7 @@ def main():
         spot = p["spot"][:2]
         t0 = time.time()
         dist = math.hypot(spot[0] - dot[0], spot[1] - dot[1])
-        if dist <= ALIGNED_TOLERANCE:
+        if dist <= aligned_tolerance:
             print(f"  pair {i+1}/{len(pairs)}  dist={dist:.0f}pt  [already aligned]", flush=True)
             continue
         ok = select_and_drag(dot, spot)

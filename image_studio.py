@@ -63,10 +63,15 @@ def main():
         except (EOFError, KeyboardInterrupt):
             print("\nAborted.")
             return
-        run("prepare_targets.py")
-        run("align.py")
         try:
-            run("verify_alignment.py")
+            tol = input("Alignment tolerance in px [5]: ").strip()
+            tolerance_px = int(tol) if tol else 5
+        except (EOFError, KeyboardInterrupt, ValueError):
+            tolerance_px = 5
+        run("prepare_targets.py")
+        run("align.py", "--tolerance", str(tolerance_px))
+        try:
+            run("verify_alignment.py", "--tolerance", str(tolerance_px))
         except subprocess.CalledProcessError:
             pass  # non-zero = misalignments found; that's a report, not a crash
     elif args.command == "detect":
