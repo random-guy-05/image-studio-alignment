@@ -3,10 +3,13 @@
 import argparse
 import json
 import subprocess
+import sys
+from pathlib import Path
 
 from verify_alignment import verify
 
 RESUME_TARGETS = "resume_targets.json"
+ALIGN_SCRIPT = str(Path(__file__).resolve().parent / "align.py")
 
 
 def main():
@@ -28,7 +31,7 @@ def main():
     with open(RESUME_TARGETS, "w") as f:
         json.dump(output, f, indent=2)
     print(f"Repairing {len(repairs)} centers")
-    subprocess.run(["python3", "align.py", "--targets", RESUME_TARGETS], check=True)
+    subprocess.run([sys.executable, ALIGN_SCRIPT, "--targets", RESUME_TARGETS], check=True)
     verify(args.tolerance)
 
 
