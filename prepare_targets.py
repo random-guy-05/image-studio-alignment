@@ -13,7 +13,6 @@ from platform_utils import activate_window, capture_fullscreen, get_largest_wind
 PREDICTED_PATH = "predicted_positions.json"
 TARGETS_PATH = "targets.json"
 BLUE_CAPTURE = "/tmp/blues_full.png"
-EXPECTED_BLUE_COUNT = 240
 BLUE_COUNT_TOLERANCE = 5
 
 
@@ -55,6 +54,11 @@ def main():
     )
     wx, wy, ww, wh = get_largest_window()
 
+    # Calculate expected blue count from grid dimensions
+    row_count = len(prediction.get("rows", []))
+    col_count = len(prediction.get("columns", []))
+    expected_blue_count = row_count * col_count
+
     activate_window()
     capture_fullscreen(BLUE_CAPTURE)
     image = cv2.imread(BLUE_CAPTURE)
@@ -73,13 +77,13 @@ def main():
     if not blues:
         raise RuntimeError(f"No blue outlines detected inside the data rectangle ({len(local_blues)} found total, rect={pixel_rect})")
     resume = "--resume" in sys.argv
-    if not resume and not EXPECTED_BLUE_COUNT - BLUE_COUNT_TOLERANCE <= len(blues) <= EXPECTED_BLUE_COUNT + BLUE_COUNT_TOLERANCE:
+    if not resume and not expected_blue_count - BLUE_COUNT_TOLERANCE <= len(blues) <= expected_blue_count + BLUE_COUNT_TOLERANCE:
         raise RuntimeError(
-            f"Expected {EXPECTED_BLUE_COUNT} +/- {BLUE_COUNT_TOLERANCE} blue outlines, "
+            f"Expected {expected_blue_count} +/- {BLUE_COUNT_TOLERANCE} blue outlines, "
             f"detected {len(blues)}; refusing to prepare drags"
         )
-    if resume and len(blues) > EXPECTED_BLUE_COUNT:
-        raise RuntimeError(f"Resume detected {len(blues)} blue outlines; refusing more than {EXPECTED_BLUE_COUNT}")
+    if resume and len(blues) > expected_blue_count:
+        raise RuntimeError(f"Resume detected {len(blues)} blue outlines; refusing more than {expected_blue_count}")
     if len(blues) > len(positions):
         raise RuntimeError(f"Detected {len(blues)} blue outlines but only {len(positions)} targets exist")
 
