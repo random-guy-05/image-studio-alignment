@@ -15,12 +15,12 @@ pyautogui.PAUSE = 0
 pyautogui.FAILSAFE = True
 pyautogui.MINIMUM_DURATION = 0
 
-PIXELS_PER_SECOND = 600
+PIXELS_PER_SECOND = 500
 MIN_DRAG          = 0.10
 STEP_HZ           = 20
 CHECKPOINT_EVERY  = 25
 CLICK_INTERVAL    = 0.08   # faster double-click gap
-BEFORE_DRAG_DELAY = 0.15   # only intentional pause: after click(s), before drag
+BEFORE_DRAG_DELAY = 0.25   # only intentional pause: after click(s), before drag
 SETTLE            = 0.00
 PRE_CLICK         = 0.00
 POST_CLICK        = 0.00
