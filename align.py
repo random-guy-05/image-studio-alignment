@@ -20,7 +20,7 @@ MIN_DRAG          = 0.10
 STEP_HZ           = 20
 CHECKPOINT_EVERY  = 25
 CLICK_INTERVAL    = 0.08   # faster double-click gap
-BEFORE_DRAG_DELAY = 0.35   # only intentional pause: after click(s), before drag
+BEFORE_DRAG_DELAY = 0.20   # intentional pause: after click(s), before drag
 SETTLE            = 0.00
 PRE_CLICK         = 0.00
 POST_CLICK        = 0.00
@@ -77,7 +77,8 @@ def select_and_drag(dot, spot, retry=False):
 
     # VERIFICATION: check if a blue circle is now at the target
     if not retry:
-        time.sleep(0.3)  # let the UI settle
+        if SETTLE > 0:
+            time.sleep(SETTLE)
         if not verify_alignment(spot):
             print(f"    MISALIGNED — correcting…", flush=True)
             # Find where the blue actually landed and re-drag to the target
