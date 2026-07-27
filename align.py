@@ -13,15 +13,17 @@ import pyautogui
 # (would otherwise make each drag take 6+s on a 60-step drag)
 pyautogui.PAUSE = 0
 pyautogui.FAILSAFE = True
+pyautogui.MINIMUM_DURATION = 0
 
 PIXELS_PER_SECOND = 400
 MIN_DRAG          = 0.20
 STEP_HZ           = 20
 CHECKPOINT_EVERY  = 25
-CLICK_INTERVAL    = 0.40   # gap between the two clicks
-SETTLE            = 0.70   # pause after each major action
-PRE_CLICK         = 0.20   # pause before first click
-POST_CLICK        = 0.20   # pause after final click
+CLICK_INTERVAL    = 0.08   # faster double-click gap
+BEFORE_DRAG_DELAY = 0.15   # only intentional pause: after click(s), before drag
+SETTLE            = 0.00
+PRE_CLICK         = 0.00
+POST_CLICK        = 0.00
 CORNER_PAD        = 10     # don't click within 10pt of the rectangle border
 
 # Window + rectangle bounds (set in main from targets.json)
@@ -63,15 +65,15 @@ def select_and_drag(dot, spot, retry=False):
                 return False
 
     pyautogui.moveTo(fx, fy)
-    time.sleep(PRE_CLICK)
     pyautogui.click()
     time.sleep(CLICK_INTERVAL)
     pyautogui.click()
-    time.sleep(SETTLE)
+
+    # only delay requested: after click(s), before drag
+    time.sleep(BEFORE_DRAG_DELAY)
+
     pyautogui.dragTo(tx, ty, duration=duration, button='left', mouseDownUp=True)
-    time.sleep(SETTLE)
     pyautogui.click()
-    time.sleep(POST_CLICK)
 
     # VERIFICATION: check if a blue circle is now at the target
     if not retry:
