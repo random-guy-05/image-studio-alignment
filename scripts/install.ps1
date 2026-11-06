@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $PyLauncher = Get-Command py -ErrorAction SilentlyContinue
 $Python = Get-Command python -ErrorAction SilentlyContinue
 if (-not $PyLauncher -and -not $Python) {
@@ -18,5 +18,5 @@ $VenvPython = Join-Path $Root ".venv\Scripts\python.exe"
 
 Write-Host ""
 Write-Host "Installed. Use:"
-Write-Host "  .\image_studio.py --help"
-Write-Host "  .\image_studio.py detect"
+Write-Host "  .venv\Scripts\python.exe src\image_studio.py --help"
+Write-Host "  .venv\Scripts\python.exe src\image_studio.py detect"

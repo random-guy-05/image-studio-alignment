@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PYTHON="${PYTHON:-python3}"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -10,7 +10,7 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 command -v "$PYTHON" >/dev/null || {
-  echo "Python 3 was not found. Install Python 3 and rerun ./install.sh." >&2
+  echo "Python 3 was not found. Install Python 3 and rerun scripts/install.sh." >&2
   exit 1
 }
 
@@ -18,10 +18,9 @@ command -v "$PYTHON" >/dev/null || {
 "$ROOT_DIR/.venv/bin/python" -m pip install --upgrade pip
 "$ROOT_DIR/.venv/bin/python" -m pip install -r "$ROOT_DIR/requirements.txt"
 
-chmod +x "$ROOT_DIR/image_studio.py"
-chmod +x "$ROOT_DIR/install.sh"
+chmod +x "$ROOT_DIR/src/image_studio.py"
 
 echo
 echo "Installed. Use:"
-echo "  $ROOT_DIR/image_studio.py --help"
-echo "  $ROOT_DIR/image_studio.py detect"
+echo "  $ROOT_DIR/.venv/bin/python $ROOT_DIR/src/image_studio.py --help"
+echo "  $ROOT_DIR/.venv/bin/python $ROOT_DIR/src/image_studio.py detect"

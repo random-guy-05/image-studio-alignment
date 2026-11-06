@@ -1,134 +1,63 @@
 # ImageStudio Alignment
 
-> Drag every blue outline circle to its correct data dot — automatically.
+Automates aligning ImageStudio's blue outline circles to their data dots. It detects the dot grid from a screenshot, pairs each outline with a target, drags it into place, then checks and repairs the result.
 
-<br>
+## Install
 
-```
-image-studio run
-```
-
-**One command.** Detects positions, pairs outlines, drags them into place, verifies, and repairs.
-
----
-
-<br>
-
-## Installation
+Requires Node.js and Python 3.11–3.13 (pyautogui does not support 3.14 yet).
 
 ```bash
 npm install -g github:random-guy-05/image-studio-alignment
 image-studio init
 ```
 
-**Requires:** Node.js + Python 3.11–3.13
+The first run creates a Python virtual environment inside the package and installs `requirements.txt`.
 
-**macOS:** Enable Accessibility for your terminal when prompted.
+On macOS, allow Accessibility (and Input Monitoring, if asked) for your terminal so pyautogui can move the mouse. On Windows, run the same commands from PowerShell.
 
-**Windows:** Same commands from PowerShell.
+## One-time setup
 
----
+1. Open the file in ImageStudio with the full grid visible.
+2. Hide the blue outline circles.
+3. Take a full-screen screenshot and save it as `screenshots/dots.png`.
+4. Show the blue outlines again.
 
-<br>
+The screenshot must not contain any blue outlines.
 
-## Setup (do this once)
-
-1. Open your file in ImageStudio — full grid visible
-2. **Hide** the blue outline circles
-3. Take a **full-screen screenshot**
-4. Save it as `screenshots/dots.png`
-5. **Show** the blue outlines again
-
----
-
-<br>
-
-## Workflow
-
-```
-                    ┌─────────┐
- screenshots ───────► detect  │
- dots.png           └────┬────┘
-                         │ 240 target positions
-                    ┌────▼────┐
-                    │ prepare │  full-screen capture
-                    └────┬────┘
-                         │ 240 blue→target pairs
-                    ┌────▼────┐
-                    │  align  │  drag every blue
-                    └────┬────┘
-                         │
-                    ┌────▼────┐
-                    │ verify  │  read-only check
-                    └────┬────┘
-                         │
-                    ┌────▼────┐
-                    │complete │  repair misalignments
-                    └─────────┘
-```
-
-**Run it all:**
+## Usage
 
 ```bash
 image-studio run
 ```
 
-You'll answer three prompts:
-- Row/column count (default 10×24)
-- Proceed after reviewing the overlay? (y/n)
-- Pixel tolerance for final check (default 5)
-
----
-
-<br>
-
-## Commands
+`run` executes every step in order and asks you three things: the grid size (default 10×24), whether to continue after you review the detection overlay, and the pixel tolerance for the final check (default 5).
 
 | Command | What it does |
-|---------|-------------|
-| `image-studio run` | Full workflow: detect → prepare → align → verify → complete |
-| `image-studio detect` | Detect blot positions from screenshot |
-| `image-studio prepare` | Scan for blue outlines and pair to targets |
-| `image-studio prepare --resume` | Same, works after a partial run |
-| `image-studio align` | Drag blues to targets |
-| `image-studio verify` | Read-only alignment report |
-| `image-studio complete` | Repair anything misaligned |
-| `image-studio clean` | Remove generated files |
+|---|---|
+| `image-studio run` | Detect, prepare, align, verify, then repair |
+| `image-studio detect` | Find the target dot positions in `screenshots/dots.png` |
+| `image-studio prepare [--resume]` | Find the blue outlines and pair each with a target |
+| `image-studio align` | Drag each outline to its target |
+| `image-studio verify` | Report alignment without moving anything |
+| `image-studio complete` | Repair only the outlines `verify` flagged |
+| `image-studio clean` | Delete generated files (keeps `screenshots/dots.png`) |
 
----
+Press Ctrl+C to stop at any point. To continue after an interruption, run `image-studio prepare --resume` and then `image-studio align`. Outlines that are already aligned are skipped.
 
-<br>
+## Generated files
 
-## Resume After Interruption
+| File | Contents |
+|---|---|
+| `screenshots/detected_overlay.png` | Detected targets drawn over the screenshot. Check it before aligning. |
+| `predicted_positions.json` | All target coordinates |
+| `targets.json` | Current outline-to-target pairs |
+| `verification.json` | Aligned, misaligned, missing and overlapping outlines |
 
-```bash
-image-studio prepare --resume
-image-studio align
+## Layout
+
 ```
-
-Already-aligned outlines are automatically skipped.
-
----
-
-<br>
-
-## Output Files
-
-| File | What's in it |
-|------|-------------|
-| `screenshots/detected_overlay.png` | Preview: green circles = predicted, red+marker = discovered |
-| `predicted_positions.json` | All 240 definitive target coordinates |
-| `targets.json` | Current blue-outline-to-target pairs |
-| `verification.json` | Alignment report: aligned / misaligned / missing / overlapping |
-
----
-
-<br>
-
-## Tips
-
-- **Never** include blue outlines in `dots.png`. They must be hidden during the screenshot.
-- Press **Ctrl+C** to stop at any time. Use resume commands to continue.
-- If macOS asks for Input Monitoring, allow it — pyautogui needs it to move the mouse.
-- The overlay at `screenshots/detected_overlay.png` updates after every `detect` — review before aligning.
-- Python 3.14 is not yet supported. Use 3.11, 3.12, or 3.13.
+bin/image-studio.js   npm entry point; manages the Python environment
+src/image_studio.py   command-line interface
+src/                  detection, pairing, alignment and verification steps
+scripts/              standalone installers (install.sh, install.ps1)
+```

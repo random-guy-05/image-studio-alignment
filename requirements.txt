@@ -2,5 +2,7 @@ numpy
 opencv-python
 scipy
 pyautogui
+Pillow
+pyscreeze
 PyGetWindow
 pynput

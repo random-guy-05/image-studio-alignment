@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
 
-const packageRoot = __dirname;
+const packageRoot = path.resolve(__dirname, "..");
 const venvDir = process.platform === "win32"
   ? path.join(packageRoot, ".venv", "Scripts")
   : path.join(packageRoot, ".venv", "bin");
@@ -43,7 +43,7 @@ if (needVenv) {
   const result = spawnSync(systemPython, ["-m", "venv", path.join(packageRoot, ".venv")], { stdio: "inherit" });
   if (result.status === 0) {
     const pip = path.join(venvDir, process.platform === "win32" ? "pip.exe" : "pip");
-    spawnSync(pip, ["install", "--no-cache-dir", "numpy", "opencv-python", "scipy", "pyautogui", "Pillow", "pyscreeze", "PyGetWindow", "pynput"], { stdio: "inherit" });
+    spawnSync(pip, ["install", "--no-cache-dir", "-r", path.join(packageRoot, "requirements.txt")], { stdio: "inherit" });
     fs.writeFileSync(venvStamp, currentVersion || "");
   }
 }
@@ -51,7 +51,7 @@ if (needVenv) {
 let runner = existsSync(venvPython) ? venvPython : systemPython;
 console.log(`Using Python: ${getPythonVersion(runner)}\n`);
 
-const args = [path.join(packageRoot, "image_studio.py"), ...process.argv.slice(2)];
+const args = [path.join(packageRoot, "src", "image_studio.py"), ...process.argv.slice(2)];
 
 const result = spawnSync(runner, args, { stdio: "inherit", cwd: process.cwd() });
 if (result.error) {

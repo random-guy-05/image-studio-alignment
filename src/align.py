@@ -130,7 +130,7 @@ def main():
         print(f"FATAL: main window has moved!", flush=True)
         print(f"  detection bounds: {data['bounds']}", flush=True)
         print(f"  current main:     {actual}", flush=True)
-        print(f"  Re-run setup.py to refresh coordinates.", flush=True)
+        print(f"  Run `image-studio prepare` to refresh coordinates.", flush=True)
         sys.exit(1)
     print(f"Window bounds verified: {actual}", flush=True)
 

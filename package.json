@@ -4,17 +4,22 @@
   "description": "Cross-platform ImageStudio blot alignment automation",
   "private": false,
   "bin": {
-    "image-studio": "image_studio_cli.js"
+    "image-studio": "bin/image-studio.js"
   },
   "scripts": {
-    "image-studio": "node image_studio_cli.js run",
-    "detect": "node image_studio_cli.js detect",
-    "targets": "node image_studio_cli.js prepare",
-    "align": "node image_studio_cli.js align",
-    "verify": "node image_studio_cli.js verify",
-    "complete": "node image_studio_cli.js complete"
+    "image-studio": "node bin/image-studio.js run",
+    "detect": "node bin/image-studio.js detect",
+    "targets": "node bin/image-studio.js prepare",
+    "align": "node bin/image-studio.js align",
+    "verify": "node bin/image-studio.js verify",
+    "complete": "node bin/image-studio.js complete"
   },
   "engines": {
     "node": ">=14"
-  }
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "requirements.txt"
+  ]
 }
